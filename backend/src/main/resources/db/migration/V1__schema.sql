@@ -34,10 +34,13 @@ CREATE TABLE stocks (
     market_cap      NUMERIC(24,2),
     pe_ratio        NUMERIC(10,2),
     eps             NUMERIC(10,2),
+    active          BOOLEAN NOT NULL DEFAULT TRUE,
+    instrument_type VARCHAR(40) NOT NULL DEFAULT 'Equity',
     source          VARCHAR(20) NOT NULL DEFAULT 'SEEDED',
     last_updated    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX idx_stocks_sector ON stocks(sector);
+CREATE INDEX idx_stocks_active ON stocks(active);
 
 CREATE TABLE price_history (
     id           BIGSERIAL PRIMARY KEY,

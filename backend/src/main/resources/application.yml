@@ -72,6 +72,28 @@ app:
     timezone: Asia/Kathmandu
     user-agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
     request-timeout-ms: 15000
+  # Live quote providers, tried in order until one succeeds.
+  market:
+    providers: ${MARKET_PROVIDERS:nepse,sharesansar}
+  # NEPSE's own (undocumented) public API. Unofficial, educational use.
+  nepse:
+    enabled: ${NEPSE_ENABLED:true}
+    # Import NEPSE's full security universe on startup (set false for offline demos).
+    universe-on-startup: ${NEPSE_UNIVERSE_ON_STARTUP:true}
+    base-url: ${NEPSE_BASE_URL:https://www.nepalstock.com}
+    token-path: /api/authenticate/prove
+    live-market-path: /api/nots/lives-market
+    security-list-path: /api/nots/security?nonDelisted=true
+    company-list-path: /api/nots/company/list
+    user-agent: ${NEPSE_USER_AGENT:Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36}
+    request-timeout-ms: ${NEPSE_REQUEST_TIMEOUT_MS:15000}
+    # NEPSE tokens are valid for roughly 45 seconds.
+    token-ttl-seconds: ${NEPSE_TOKEN_TTL_SECONDS:40}
+  history:
+    backfill:
+      # socrateai-official/nepse-open-data (MIT): one adjusted OHLC CSV per trading day.
+      base-url: ${HISTORY_BACKFILL_BASE_URL:https://raw.githubusercontent.com/socrateai-official/nepse-open-data/main}
+      parallelism: ${HISTORY_BACKFILL_PARALLELISM:6}
   ml:
     enabled: ${ML_ENABLED:true}
     base-url: ${ML_SERVICE_URL:http://localhost:8000}
@@ -83,7 +105,6 @@ app:
     from: ${MAIL_FROM:no-reply@nepse.local}
   seed:
     demo-user: ${SEED_DEMO_USER:true}
-    price-history-days: ${SEED_PRICE_HISTORY_DAYS:260}
 
 logging:
   level:

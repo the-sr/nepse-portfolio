@@ -1,11 +1,13 @@
 package com.nepse.portfolio.auth;
 
 import jakarta.persistence.*;
+import lombok.Getter;
 
 import java.time.Instant;
 
 @Entity
 @Table(name = "refresh_tokens")
+@Getter
 public class RefreshToken {
 
     @Id
@@ -34,26 +36,6 @@ public class RefreshToken {
         this.userId = userId;
         this.token = token;
         this.expiresAt = expiresAt;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public Long getUserId() {
-        return userId;
-    }
-
-    public String getToken() {
-        return token;
-    }
-
-    public Instant getExpiresAt() {
-        return expiresAt;
-    }
-
-    public boolean isRevoked() {
-        return revoked;
     }
 
     public void revoke() {

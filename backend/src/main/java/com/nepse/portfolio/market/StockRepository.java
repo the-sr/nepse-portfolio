@@ -16,4 +16,6 @@ public interface StockRepository extends JpaRepository<Stock, Long> {
     List<Stock> findBySectorIgnoreCaseOrderBySymbolAsc(String sector);
 
     long countBySource(String source);
+
+    long countByActiveTrue();
 }

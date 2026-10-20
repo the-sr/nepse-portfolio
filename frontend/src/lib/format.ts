@@ -11,6 +11,12 @@ export function formatNpr(value: number | null | undefined): string {
   return `रु ${nprFormatter.format(Number(value ?? 0))}`;
 }
 
+/** Prices that have never traded are shown as a dash rather than रु 0.00. */
+export function formatPrice(value: number | null | undefined): string {
+  const amount = Number(value ?? 0);
+  return amount > 0 ? formatNpr(amount) : '—';
+}
+
 export function formatSignedNpr(value: number | null | undefined): string {
   const amount = Number(value ?? 0);
   const sign = amount > 0 ? '+' : amount < 0 ? '-' : '';

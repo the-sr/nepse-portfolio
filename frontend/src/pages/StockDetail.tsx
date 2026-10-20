@@ -22,6 +22,7 @@ import {
   formatDateTime,
   formatNpr,
   formatPercent,
+  formatPrice,
   formatSignedNpr,
   pnlClass,
   sourceClasses,
@@ -172,7 +173,7 @@ export default function StockDetailPage() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                रु {stock.ltp.toFixed(2)}
+                {formatPrice(stock.ltp)}
               </p>
               <p className={cn('mt-1 flex items-center gap-1.5 text-sm font-semibold', pnlClass(stock.changePercent))}>
                 {rising ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}

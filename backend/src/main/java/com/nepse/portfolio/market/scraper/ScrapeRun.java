@@ -1,11 +1,15 @@
 package com.nepse.portfolio.market.scraper;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.time.Instant;
 
 @Entity
 @Table(name = "scrape_runs")
+@Getter
+@Setter
 public class ScrapeRun {
 
     @Id
@@ -34,34 +38,6 @@ public class ScrapeRun {
 
     public ScrapeRun(String source) {
         this.source = source;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public Instant getStartedAt() {
-        return startedAt;
-    }
-
-    public Instant getFinishedAt() {
-        return finishedAt;
-    }
-
-    public boolean isSuccess() {
-        return success;
-    }
-
-    public int getRowsParsed() {
-        return rowsParsed;
-    }
-
-    public String getSource() {
-        return source;
-    }
-
-    public String getMessage() {
-        return message;
     }
 
     public void finish(boolean success, int rowsParsed, String message) {

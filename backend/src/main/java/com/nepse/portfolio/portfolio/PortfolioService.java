@@ -96,6 +96,11 @@ public class PortfolioService {
         Stock stock = stockRepository.findBySymbolIgnoreCase(request.symbol().trim())
                 .orElseThrow(() -> ApiException.notFound("Stock " + request.symbol() + " not found"));
 
+        if (!stock.isActive()) {
+            throw ApiException.badRequest(stock.getSymbol()
+                    + " is no longer listed as active on NEPSE, so new trades are blocked");
+        }
+
         if (request.type() == TradeType.SELL) {
             int available = holdingsQuantity(userId, stock.getId());
             if (request.quantity() > available) {

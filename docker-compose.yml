@@ -56,6 +56,10 @@ services:
       SCRAPER_ENABLED: ${SCRAPER_ENABLED:-true}
       SCRAPER_IGNORE_MARKET_HOURS: ${SCRAPER_IGNORE_MARKET_HOURS:-false}
       SCRAPER_INTERVAL_MS: ${SCRAPER_INTERVAL_MS:-90000}
+      MARKET_PROVIDERS: ${MARKET_PROVIDERS:-nepse,sharesansar}
+      NEPSE_ENABLED: ${NEPSE_ENABLED:-true}
+      NEPSE_UNIVERSE_ON_STARTUP: ${NEPSE_UNIVERSE_ON_STARTUP:-true}
+      HISTORY_BACKFILL_BASE_URL: ${HISTORY_BACKFILL_BASE_URL:-https://raw.githubusercontent.com/socrateai-official/nepse-open-data/main}
       SEED_DEMO_USER: ${SEED_DEMO_USER:-true}
       MAIL_HOST: ${MAIL_HOST:-localhost}
       MAIL_PORT: ${MAIL_PORT:-587}

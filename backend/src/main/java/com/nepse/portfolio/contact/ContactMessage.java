@@ -1,11 +1,15 @@
 package com.nepse.portfolio.contact;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.time.Instant;
 
 @Entity
 @Table(name = "contact_messages")
+@Getter
+@Setter
 public class ContactMessage {
 
     @Id
@@ -34,33 +38,5 @@ public class ContactMessage {
         this.name = name;
         this.email = email;
         this.message = message;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public boolean isEmailSent() {
-        return emailSent;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setEmailSent(boolean emailSent) {
-        this.emailSent = emailSent;
     }
 }

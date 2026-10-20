@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -7,9 +7,10 @@ import { toast } from 'sonner';
 import { Info } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
+import SymbolPicker from '@/components/SymbolPicker';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
-import { formatNpr } from '@/lib/format';
+import { formatNpr, formatPrice } from '@/lib/format';
 import type { Holding, Stock } from '@/types';
 
 const schema = z.object({
@@ -51,6 +52,7 @@ export default function AddTradeModal({
 
   const {
     register,
+    control,
     handleSubmit,
     reset,
     watch,
@@ -149,22 +151,25 @@ export default function AddTradeModal({
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="label" htmlFor="trade-symbol">Symbol</label>
-            <input
-              id="trade-symbol"
-              list="trade-symbols"
-              placeholder="NICA"
-              className="input uppercase"
-              {...register('symbol')}
+            <Controller
+              control={control}
+              name="symbol"
+              render={({ field }) => (
+                <SymbolPicker
+                  id="trade-symbol"
+                  stocks={stocks}
+                  value={field.value}
+                  onChange={field.onChange}
+                  invalid={Boolean(errors.symbol)}
+                />
+              )}
             />
-            <datalist id="trade-symbols">
-              {stocks.map((stock) => (
-                <option key={stock.id} value={stock.symbol}>{stock.companyName}</option>
-              ))}
-            </datalist>
             {errors.symbol && <p className="mt-1 text-xs text-rose-500">{errors.symbol.message}</p>}
             {selectedStock && (
               <p className="mt-1 text-[11px] text-slate-400">
-                LTP {formatNpr(selectedStock.ltp)} · {selectedStock.companyName}
+                LTP {formatPrice(selectedStock.ltp)} · {selectedStock.companyName}
+                {selectedStock.instrumentType && selectedStock.instrumentType !== 'Equity'
+                  && ` · ${selectedStock.instrumentType}`}
               </p>
             )}
           </div>

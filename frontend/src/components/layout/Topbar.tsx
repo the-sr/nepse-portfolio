@@ -15,7 +15,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
-import { formatPercent, pnlClass } from '@/lib/format';
+import { formatPercent, formatPrice, pnlClass } from '@/lib/format';
 import type { Stock } from '@/types';
 
 function KathmanduClock() {
@@ -130,7 +130,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
                     <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{stock.companyName}</span>
                   </span>
                   <span className="text-right">
-                    <span className="block text-sm font-semibold text-slate-800 dark:text-slate-200">{stock.ltp.toFixed(2)}</span>
+                    <span className="block text-sm font-semibold text-slate-800 dark:text-slate-200">{formatPrice(stock.ltp)}</span>
                     <span className={cn('block text-xs font-semibold', pnlClass(stock.changePercent))}>
                       {formatPercent(stock.changePercent)}
                     </span>

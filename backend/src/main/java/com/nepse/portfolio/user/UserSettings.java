@@ -1,12 +1,16 @@
 package com.nepse.portfolio.user;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 
 @Entity
 @Table(name = "user_settings")
+@Getter
+@Setter
 public class UserSettings {
 
     @Id
@@ -48,86 +52,6 @@ public class UserSettings {
 
     public UserSettings(Long userId) {
         this.userId = userId;
-    }
-
-    public Long getUserId() {
-        return userId;
-    }
-
-    public String getTheme() {
-        return theme;
-    }
-
-    public void setTheme(String theme) {
-        this.theme = theme;
-    }
-
-    public BigDecimal getLossThresholdMinor() {
-        return lossThresholdMinor;
-    }
-
-    public void setLossThresholdMinor(BigDecimal value) {
-        this.lossThresholdMinor = value;
-    }
-
-    public BigDecimal getLossThresholdMajor() {
-        return lossThresholdMajor;
-    }
-
-    public void setLossThresholdMajor(BigDecimal value) {
-        this.lossThresholdMajor = value;
-    }
-
-    public BigDecimal getLossThresholdAggressive() {
-        return lossThresholdAggressive;
-    }
-
-    public void setLossThresholdAggressive(BigDecimal value) {
-        this.lossThresholdAggressive = value;
-    }
-
-    public BigDecimal getBaseBuyAmount() {
-        return baseBuyAmount;
-    }
-
-    public void setBaseBuyAmount(BigDecimal value) {
-        this.baseBuyAmount = value;
-    }
-
-    public BigDecimal getMaxPositionPercent() {
-        return maxPositionPercent;
-    }
-
-    public void setMaxPositionPercent(BigDecimal value) {
-        this.maxPositionPercent = value;
-    }
-
-    public BigDecimal getMaxCapitalPerStock() {
-        return maxCapitalPerStock;
-    }
-
-    public void setMaxCapitalPerStock(BigDecimal value) {
-        this.maxCapitalPerStock = value;
-    }
-
-    public BigDecimal getCgtShortRate() {
-        return cgtShortRate;
-    }
-
-    public void setCgtShortRate(BigDecimal value) {
-        this.cgtShortRate = value;
-    }
-
-    public BigDecimal getCgtLongRate() {
-        return cgtLongRate;
-    }
-
-    public void setCgtLongRate(BigDecimal value) {
-        this.cgtLongRate = value;
-    }
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
     }
 
     public void touch() {

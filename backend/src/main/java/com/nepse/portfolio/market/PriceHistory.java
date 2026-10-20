@@ -1,12 +1,16 @@
 package com.nepse.portfolio.market;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Entity
 @Table(name = "price_history")
+@Getter
+@Setter
 public class PriceHistory {
 
     @Id
@@ -45,58 +49,6 @@ public class PriceHistory {
         this.highPrice = highPrice;
         this.lowPrice = lowPrice;
         this.closePrice = closePrice;
-        this.volume = volume;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public Long getStockId() {
-        return stockId;
-    }
-
-    public LocalDate getTradeDate() {
-        return tradeDate;
-    }
-
-    public BigDecimal getOpenPrice() {
-        return openPrice;
-    }
-
-    public void setOpenPrice(BigDecimal openPrice) {
-        this.openPrice = openPrice;
-    }
-
-    public BigDecimal getHighPrice() {
-        return highPrice;
-    }
-
-    public void setHighPrice(BigDecimal highPrice) {
-        this.highPrice = highPrice;
-    }
-
-    public BigDecimal getLowPrice() {
-        return lowPrice;
-    }
-
-    public void setLowPrice(BigDecimal lowPrice) {
-        this.lowPrice = lowPrice;
-    }
-
-    public BigDecimal getClosePrice() {
-        return closePrice;
-    }
-
-    public void setClosePrice(BigDecimal closePrice) {
-        this.closePrice = closePrice;
-    }
-
-    public long getVolume() {
-        return volume;
-    }
-
-    public void setVolume(long volume) {
         this.volume = volume;
     }
 }

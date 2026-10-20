@@ -46,6 +46,12 @@ public class AlertService {
     public AlertDto create(Long userId, CreateAlertRequest request) {
         Stock stock = stockRepository.findBySymbolIgnoreCase(request.symbol().trim())
                 .orElseThrow(() -> ApiException.notFound("Stock " + request.symbol() + " not found"));
+
+        if (!stock.isActive()) {
+            throw ApiException.badRequest(stock.getSymbol()
+                    + " is no longer listed as active on NEPSE, so new alerts are blocked");
+        }
+
         validateThreshold(request.type(), request.threshold());
         Alert alert = alertRepository.save(new Alert(userId, stock.getId(), request.type(), request.threshold()));
         return toDto(alert, stock);

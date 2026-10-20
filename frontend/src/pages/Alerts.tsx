@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
@@ -16,10 +16,11 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
-import { formatDateTime, formatNpr, formatPercent, pnlClass } from '@/lib/format';
+import { formatDateTime, formatNpr, formatPercent, formatPrice, pnlClass } from '@/lib/format';
 import { cn } from '@/lib/cn';
 import { useAlertStream } from '@/lib/streams';
 import Card from '@/components/ui/Card';
+import SymbolPicker from '@/components/SymbolPicker';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
@@ -75,6 +76,7 @@ export default function Alerts() {
 
   const {
     register,
+    control,
     handleSubmit,
     reset,
     formState: { errors },
@@ -175,7 +177,7 @@ export default function Alerts() {
                         <span className="font-bold text-slate-900 dark:text-white">{thresholdText(alert)}</span>
                       </p>
                       <p className="mt-0.5 text-[11px] text-slate-400">
-                        LTP {alert.ltp != null ? formatNpr(alert.ltp) : '—'}
+                        LTP {formatPrice(alert.ltp)}
                         {alert.changePercent != null && (
                           <span className={cn('ml-2 font-semibold', pnlClass(alert.changePercent))}>
                             {formatPercent(alert.changePercent)}
@@ -276,18 +278,19 @@ export default function Alerts() {
         <form onSubmit={handleSubmit((values) => createMutation.mutate(values))} className="space-y-4">
           <div>
             <label className="label" htmlFor="alert-symbol">Symbol</label>
-            <input
-              id="alert-symbol"
-              list="alert-symbols"
-              placeholder="NICA"
-              className="input uppercase"
-              {...register('symbol')}
+            <Controller
+              control={control}
+              name="symbol"
+              render={({ field }) => (
+                <SymbolPicker
+                  id="alert-symbol"
+                  stocks={stocks}
+                  value={field.value}
+                  onChange={field.onChange}
+                  invalid={Boolean(errors.symbol)}
+                />
+              )}
             />
-            <datalist id="alert-symbols">
-              {stocks.map((stock) => (
-                <option key={stock.id} value={stock.symbol}>{stock.companyName}</option>
-              ))}
-            </datalist>
             {errors.symbol && <p className="mt-1 text-xs text-rose-500">{errors.symbol.message}</p>}
           </div>
 

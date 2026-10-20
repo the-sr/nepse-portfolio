@@ -1,12 +1,16 @@
 package com.nepse.portfolio.alert;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 
 @Entity
 @Table(name = "alerts")
+@Getter
+@Setter
 public class Alert {
 
     @Id
@@ -46,50 +50,6 @@ public class Alert {
         this.stockId = stockId;
         this.type = type;
         this.threshold = threshold;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public Long getUserId() {
-        return userId;
-    }
-
-    public Long getStockId() {
-        return stockId;
-    }
-
-    public AlertType getType() {
-        return type;
-    }
-
-    public BigDecimal getThreshold() {
-        return threshold;
-    }
-
-    public void setThreshold(BigDecimal threshold) {
-        this.threshold = threshold;
-    }
-
-    public boolean isActive() {
-        return active;
-    }
-
-    public void setActive(boolean active) {
-        this.active = active;
-    }
-
-    public boolean isTriggered() {
-        return triggered;
-    }
-
-    public Instant getLastTriggeredAt() {
-        return lastTriggeredAt;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
     }
 
     public void markTriggered() {

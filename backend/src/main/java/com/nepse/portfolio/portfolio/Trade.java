@@ -1,12 +1,16 @@
 package com.nepse.portfolio.portfolio;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 
 @Entity
 @Table(name = "trades")
+@Getter
+@Setter
 public class Trade {
 
     @Id
@@ -59,51 +63,7 @@ public class Trade {
         this.notes = notes;
     }
 
-    public Long getId() {
-        return id;
-    }
-
-    public Long getUserId() {
-        return userId;
-    }
-
-    public Long getStockId() {
-        return stockId;
-    }
-
-    public TradeType getType() {
-        return type;
-    }
-
-    public int getQuantity() {
-        return quantity;
-    }
-
-    public BigDecimal getPrice() {
-        return price;
-    }
-
-    public BigDecimal getBrokerage() {
-        return brokerage;
-    }
-
-    public BigDecimal getTax() {
-        return tax;
-    }
-
     public BigDecimal getFees() {
         return brokerage.add(tax);
-    }
-
-    public Instant getTradeDate() {
-        return tradeDate;
-    }
-
-    public String getNotes() {
-        return notes;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
     }
 }

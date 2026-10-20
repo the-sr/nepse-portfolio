@@ -26,10 +26,11 @@ public class MarketService {
     }
 
     @Transactional(readOnly = true)
-    public List<StockDto> list(String query, String sector) {
+    public List<StockDto> list(String query, String sector, boolean includeInactive) {
         String q = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
         String s = sector == null ? "" : sector.trim();
         return stockRepository.findAllByOrderBySymbolAsc().stream()
+                .filter(stock -> includeInactive || stock.isActive())
                 .filter(stock -> q.isEmpty()
                         || stock.getSymbol().toLowerCase(Locale.ROOT).contains(q)
                         || stock.getCompanyName().toLowerCase(Locale.ROOT).contains(q))
@@ -66,7 +67,12 @@ public class MarketService {
 
     @Transactional(readOnly = true)
     public MoversDto movers() {
+        // The dashboard widget is about tradable equities; promoter shares and
+        // debentures are extremely illiquid and would dominate the % rankings.
         List<StockDto> all = stockRepository.findAllByOrderBySymbolAsc().stream()
+                .filter(Stock::isActive)
+                .filter(stock -> "Equity".equalsIgnoreCase(stock.getInstrumentType()))
+                .filter(stock -> stock.getLtp() != null && stock.getLtp().signum() > 0)
                 .map(StockDto::from)
                 .toList();
         List<StockDto> gainers = all.stream()
@@ -89,6 +95,8 @@ public class MarketService {
     @Transactional(readOnly = true)
     public List<SectorPerformanceDto> sectors() {
         Map<String, List<Stock>> bySector = stockRepository.findAllByOrderBySymbolAsc().stream()
+                .filter(Stock::isActive)
+                .filter(stock -> stock.getLtp() != null && stock.getLtp().signum() > 0)
                 .filter(stock -> stock.getSector() != null)
                 .collect(Collectors.groupingBy(Stock::getSector));
 
@@ -111,6 +119,7 @@ public class MarketService {
     @Transactional(readOnly = true)
     public List<String> sectorsList() {
         return stockRepository.findAllByOrderBySymbolAsc().stream()
+                .filter(Stock::isActive)
                 .map(Stock::getSector)
                 .filter(sector -> sector != null && !sector.isBlank())
                 .distinct()

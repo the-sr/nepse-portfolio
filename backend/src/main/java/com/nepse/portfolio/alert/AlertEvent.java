@@ -1,12 +1,14 @@
 package com.nepse.portfolio.alert;
 
 import jakarta.persistence.*;
+import lombok.Getter;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 
 @Entity
 @Table(name = "alert_events")
+@Getter
 public class AlertEvent {
 
     @Id
@@ -40,33 +42,5 @@ public class AlertEvent {
         this.stockId = stockId;
         this.price = price;
         this.message = message;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public Long getAlertId() {
-        return alertId;
-    }
-
-    public Long getUserId() {
-        return userId;
-    }
-
-    public Long getStockId() {
-        return stockId;
-    }
-
-    public BigDecimal getPrice() {
-        return price;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
     }
 }

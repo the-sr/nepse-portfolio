@@ -17,8 +17,9 @@ public class MarketController {
 
     @GetMapping("/stocks")
     public List<StockDto> stocks(@RequestParam(required = false) String query,
-                                 @RequestParam(required = false) String sector) {
-        return marketService.list(query, sector);
+                                 @RequestParam(required = false) String sector,
+                                 @RequestParam(defaultValue = "false") boolean includeInactive) {
+        return marketService.list(query, sector, includeInactive);
     }
 
     @GetMapping("/stocks/{symbol}")

@@ -1,5 +1,6 @@
 package com.nepse.portfolio.market.scraper;
 
+import com.nepse.portfolio.market.provider.MarketDataProvider;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -21,7 +22,9 @@ import java.util.Map;
  * we map columns by header name first and only fall back to fixed positions.
  */
 @Component
-public class SharesansarScraper {
+public class SharesansarScraper implements MarketDataProvider {
+
+    public static final String PROVIDER_NAME = "sharesansar";
 
     private static final Logger log = LoggerFactory.getLogger(SharesansarScraper.class);
 
@@ -35,6 +38,16 @@ public class SharesansarScraper {
         this.liveUrl = liveUrl;
         this.userAgent = userAgent;
         this.timeoutMs = timeoutMs;
+    }
+
+    @Override
+    public String name() {
+        return PROVIDER_NAME;
+    }
+
+    @Override
+    public String description() {
+        return "Sharesansar live-trading table";
     }
 
     public List<ScrapedQuote> fetch() {
@@ -109,7 +122,8 @@ public class SharesansarScraper {
                     prevClose,
                     changePercent == null ? BigDecimal.ZERO : changePercent,
                     volume,
-                    turnover == null ? BigDecimal.ZERO : turnover
+                    turnover == null ? BigDecimal.ZERO : turnover,
+                    null
             ));
         }
 

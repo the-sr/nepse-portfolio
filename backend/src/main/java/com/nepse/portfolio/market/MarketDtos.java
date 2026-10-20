@@ -25,7 +25,9 @@ public final class MarketDtos {
             BigDecimal change,
             BigDecimal changePercent,
             Instant lastUpdated,
-            String source
+            String source,
+            String instrumentType,
+            boolean active
     ) {
         public static StockDto from(Stock stock) {
             return new StockDto(
@@ -43,7 +45,9 @@ public final class MarketDtos {
                     stock.getChange(),
                     stock.getChangePercent(),
                     stock.getLastUpdated(),
-                    stock.getSource()
+                    stock.getSource(),
+                    stock.getInstrumentType(),
+                    stock.isActive()
             );
         }
     }

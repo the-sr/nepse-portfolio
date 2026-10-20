@@ -4,8 +4,8 @@ A full-stack portfolio tracker for the Nepal Stock Exchange. It tracks holdings 
 scraped price, computes FIFO P&L, suggests averaging-down tranches, scores buy/hold/sell signals
 with an explainable rule engine (or a scikit-learn model), and streams price alerts over SSE.
 
-> **Educational tool, not financial advice.** Prices can be delayed or incomplete, seeded history
-> is clearly labelled, and the signals ignore your personal objectives and tax situation.
+> **Educational tool, not financial advice.** Prices can be delayed or incomplete, and the signals
+> ignore your personal objectives and tax situation.
 
 ---
 
@@ -28,7 +28,8 @@ it can be retrained without redeploying the API.
 Browser ──► nginx (React SPA) ──/api──► Spring Boot ──► PostgreSQL
                                             │                ▲
                                             └──HTTP──► FastAPI ML ┘
-                                            └──Jsoup──► Sharesansar live trading
+                                            └──HTTP──► NEPSE live market API
+                                            └──Jsoup──► Sharesansar (fallback)
 ```
 
 ---
@@ -37,9 +38,10 @@ Browser ──► nginx (React SPA) ──/api──► Spring Boot ──► Po
 
 - **Authentication** — register/login, BCrypt passwords, short-lived JWT access tokens, rotating
   refresh tokens stored in Postgres, automatic refresh on the frontend.
-- **Market data** — scheduled Sharesansar scrape every 90 s during NEPSE hours (Sun–Thu
-  11:00–15:00 NPT), header-based table parsing, cached fallback when the source fails, scrape-run
-  audit log.
+- **Market data** — the full security universe is imported from NEPSE on startup, then prices
+  refresh every 90 s during NEPSE hours (Mon–Fri 11:00–15:00 NPT) from NEPSE's own live-market
+  API, with the Sharesansar table scrape as an automatic fallback. Scrape-run audit log and
+  provider health in the admin status endpoint.
 - **Portfolio** — buy/sell trades with fees, FIFO lot matching, remaining-lot average cost,
   realized and unrealized P&L, day change, allocation weights, transaction history.
 - **Charts** — portfolio value history, allocation donut, per-stock price chart with 1M/3M/6M/1Y
@@ -111,8 +113,9 @@ docker compose ps
 | ML docs | http://localhost:8000/docs |
 | Postgres | `localhost:5432` (user/db from `.env`) |
 
-First startup runs Flyway, seeds 40 NEPSE symbols, 260 days of **clearly labelled seeded** price
-history, a demo user, demo trades and alerts. Give the backend ~20–40 s on the first run.
+First startup runs Flyway, imports NEPSE's live security universe, and creates a demo user, demo
+trades and alerts. Give the backend ~20–40 s on the first run. Price history is not fabricated —
+import it once with the admin backfill in [Market data notes](#market-data-notes).
 
 ### Demo accounts
 
@@ -151,21 +154,74 @@ buckets. The artifact is stored in the `ml_models` volume and reloaded on restar
 `POST /predict` takes `{symbol, lossPercent, holdingDays, concentration}`. The backend passes the
 user's position context and falls back to Java scoring if the service is down, the symbol has too
 little history, or the top-class probability is below `ML_MIN_CONFIDENCE` (default `0.35`). A
-low-confidence model should not override a transparent rule score; on the seeded random-walk data
-the model is deliberately treated this way until real history improves it.
+low-confidence model should not override a transparent rule score; the model is deliberately
+treated this way until enough real history has been imported.
 
 ---
 
-## Scraper notes
+## Market data notes
 
-- Source: `https://www.sharesansar.com/live-trading` (Jsoup, `#DataTables_Table_0`).
-- Columns are mapped by header text, not position, so added columns do not break parsing.
-- Runs every 90 s but only inside NEPSE hours by default. For demos outside market hours set
+**Live quotes** are fetched from NEPSE's own public API, with a scraped fallback:
+
+1. `nepse` (primary) — `GET https://www.nepalstock.com/api/nots/lives-market`.
+   One request returns every listed security with open/high/low/LTP, previous close, volume and
+   turnover. NEPSE's API is undocumented and requires a short-lived token:
+   `GET /api/authenticate/prove` returns an access token plus five salts; a bundled copy of
+   NEPSE's own `css.wasm` (the same public asset `nepalstock.com` loads in the browser) is used to
+   compute the junk characters that must be stripped from the token. Requests then send
+   `Authorization: Salter <token>`. Tokens are cached for 40 s and refreshed on 401/empty responses.
+2. `sharesansar` (fallback) — `https://www.sharesansar.com/live-trading`, parsed with Jsoup.
+   Columns are mapped by header text, not position, so added columns do not break parsing.
+
+Providers are tried in the order set by `MARKET_PROVIDERS` (default `nepse,sharesansar`); the first
+non-empty response wins and the chosen source is recorded in `scrape_runs`.
+
+**Historical prices** come from
+[socrateai-official/nepse-open-data](https://github.com/socrateai-official/nepse-open-data) (MIT),
+one corporate-action-adjusted OHLC CSV per trading day. Import or refresh it with:
+
+```bash
+# ADMIN token required
+curl -X POST "http://localhost:8080/api/admin/market/backfill?days=260" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+The import replaces stored bars in the covered date range, so it is safe to run repeatedly. After
+importing, stocks that did not trade in the latest session take their most recent real close from
+the history table (`source = HISTORY`) instead of showing zero.
+
+**Security universe.** The app imports every security NEPSE currently lists as active — equities,
+promoter shares, mutual funds, debentures and preference shares — using
+`/api/nots/security?nonDelisted=true` and `/api/nots/company/list`. This runs automatically on
+startup (disable with `NEPSE_UNIVERSE_ON_STARTUP=false`) and can also be re-run on demand. Each row
+keeps NEPSE's own sector (`sector`) and instrument classification (`instrument_type`). Securities
+that drop out of the active list are marked `active = false` rather than deleted, so existing
+trades, alerts and price history remain valid; new trades and alerts for them are rejected.
+Re-run the import when NEPSE adds or delists securities, then run the history backfill so new
+symbols get real bars:
+
+```bash
+# ADMIN token required
+curl -X POST "http://localhost:8080/api/admin/market/universe" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+`GET /api/market/stocks` returns active securities only; pass `?includeInactive=true` for the full
+table. `GET /api/market/stocks/{symbol}` still resolves inactive symbols so old portfolios open.
+
+NEPSE's company list does not carry a sector for four promoter shares (`MDBLPO`, `PRFLPO`,
+`PSDBLP`, `SNMAPO`), so those rows keep a null sector instead of a fabricated one. Everything
+else uses NEPSE's own `sectorName`.
+
+Other notes:
+
+- The scheduler runs every 90 s inside NEPSE hours. For demos outside market hours set
   `SCRAPER_IGNORE_MARKET_HOURS=true`.
-- Every run is recorded in `scrape_runs`; the last good prices are kept if the request fails.
-- `POST /api/admin/market/sync` triggers a manual scrape (ADMIN only).
-- NEPSE has no dependable free historical API. Until enough real sessions accumulate, seeded bars
-  are marked `source = SEEDED`; scraped stocks are marked `SCRAPED`. The UI shows this badge.
+- Every run is recorded in `scrape_runs`; the last good prices are kept if all providers fail.
+- `POST /api/admin/market/sync` triggers an immediate refresh (ADMIN only).
+- `GET /api/admin/market/status` reports the provider chain, the last source used and recent runs.
+- NEPSE's API is unofficial and can change without notice; that is why the scraper fallback is
+  kept. Use it for personal/educational purposes only.
 
 ---
 
@@ -214,9 +270,10 @@ make frontend-test   # Vitest: formatting helpers
 make ml-test         # pytest: feature/label engineering
 ```
 
-Current baseline: backend 14 tests, frontend 6 tests, ML feature tests (3 tests). After
-`docker compose up`, also run `make smoke` (or `bash tests/api-smoke.sh`) to verify the deployed
-API, demo login, seeded portfolio and reports.
+Current baseline: backend 33 tests (FIFO, indicators, DCA, scraper parsing, NEPSE token/WASM,
+security-universe and CSV import, plus one live NEPSE integration test), frontend 6 tests, ML
+feature tests (3 tests). After `docker compose up`, also run `make smoke` (or
+`bash tests/api-smoke.sh`) to verify the deployed API, demo login, demo portfolio and reports.
 
 ---
 
@@ -236,7 +293,7 @@ All routes below are under `/api`; everything except auth, public market reads a
 | Settings | `GET/PUT /settings` |
 | Contact | `POST /contact` |
 | Streams | `GET /market/stream`, `GET /alerts/stream?access_token=…` (SSE) |
-| Admin | `GET /admin/market/status`, `POST /admin/market/sync`, `GET /admin/ml/status` |
+| Admin | `GET /admin/market/status`, `POST /admin/market/universe`, `POST /admin/market/sync`, `POST /admin/market/backfill?days=260`, `GET /admin/ml/status` |
 
 Error responses use a consistent `{timestamp, status, error, message, path}` body. Validation errors
 include a `fieldErrors` map.
@@ -252,14 +309,17 @@ Key variables (see `.env.example` and `backend/src/main/resources/application.ym
 | `JWT_SECRET` | dev value | HMAC key, **must** be replaced in production (32+ chars) |
 | `JWT_ACCESS_MINUTES` / `JWT_REFRESH_DAYS` | 30 / 14 | Token lifetimes |
 | `CORS_ORIGINS` | localhost:5173,3000 | Comma-separated allowed origins |
-| `SCRAPER_ENABLED` | true | Toggle scraping |
-| `SCRAPER_INTERVAL_MS` | 90000 | Scrape cadence |
+| `SCRAPER_ENABLED` | true | Toggle market data refresh |
+| `SCRAPER_INTERVAL_MS` | 90000 | Refresh cadence |
 | `SCRAPER_IGNORE_MARKET_HOURS` | false | Demo mode outside NEPSE hours |
+| `MARKET_PROVIDERS` | `nepse,sharesansar` | Provider order; first success wins |
+| `NEPSE_ENABLED` | true | Enable NEPSE's live-market API |
+| `NEPSE_UNIVERSE_ON_STARTUP` | true | Import NEPSE's security universe on startup |
+| `HISTORY_BACKFILL_BASE_URL` | socrateai dataset | Source for real historical CSVs |
 | `ML_ENABLED` / `ML_SERVICE_URL` | true / localhost:8000 | ML integration |
 | `ML_MIN_CONFIDENCE` | 0.35 | Minimum model probability before it overrides the rules |
 | `SEED_DEMO_USER` | true | Create demo/admin accounts and sample trades |
 | `MAIL_*`, `ADMIN_EMAIL`, `MAIL_FROM` | blank | Optional contact-form email |
-| `SEED_PRICE_HISTORY_DAYS` | 260 | Seeded daily bars per symbol |
 
 ---
 
@@ -278,7 +338,7 @@ nepse-portfolio/
 │       ├── alert/ contact/ report/ stream/ user/
 │       ├── common/ config/ security/ seed/
 │       └── ...
-│   └── src/main/resources/db/migration/   # Flyway V1 schema, V2 stock seed
+│   └── src/main/resources/db/migration/   # Flyway V1 schema
 ├── frontend/
 │   ├── Dockerfile, nginx.conf
 │   └── src/
@@ -305,7 +365,7 @@ migration (reset the dev volume with `docker compose down -v`).
 
 **Prices do not update** — NEPSE may be closed, Sharesansar markup may have changed, or outbound
 network access may be blocked. Check `docker compose logs backend` for scrape errors and
-`/api/admin/market/status`. Seeded prices remain usable meanwhile.
+`/api/admin/market/status`. The last known prices remain usable meanwhile.
 
 **Recommendations show `RULE` instead of `ML`** — expected until you call `POST /train`; the rule
 engine is the intentional fallback.

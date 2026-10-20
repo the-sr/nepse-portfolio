@@ -1,12 +1,16 @@
 package com.nepse.portfolio.market;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 
 @Entity
 @Table(name = "stocks")
+@Getter
+@Setter
 public class Stock {
 
     @Id
@@ -20,6 +24,12 @@ public class Stock {
     private String companyName;
 
     private String sector;
+
+    @Column(name = "instrument_type", nullable = false)
+    private String instrumentType = "Equity";
+
+    @Column(nullable = false)
+    private boolean active = true;
 
     @Column(nullable = false)
     private BigDecimal ltp = BigDecimal.ZERO;
@@ -59,104 +69,12 @@ public class Stock {
     protected Stock() {
     }
 
-    public Long getId() {
-        return id;
-    }
-
-    public String getSymbol() {
-        return symbol;
-    }
-
-    public String getCompanyName() {
-        return companyName;
-    }
-
-    public String getSector() {
-        return sector;
-    }
-
-    public BigDecimal getLtp() {
-        return ltp;
-    }
-
-    public void setLtp(BigDecimal ltp) {
-        this.ltp = ltp;
-    }
-
-    public BigDecimal getPrevClose() {
-        return prevClose;
-    }
-
-    public void setPrevClose(BigDecimal prevClose) {
-        this.prevClose = prevClose;
-    }
-
-    public BigDecimal getOpenPrice() {
-        return openPrice;
-    }
-
-    public void setOpenPrice(BigDecimal openPrice) {
-        this.openPrice = openPrice;
-    }
-
-    public BigDecimal getHighPrice() {
-        return highPrice;
-    }
-
-    public void setHighPrice(BigDecimal highPrice) {
-        this.highPrice = highPrice;
-    }
-
-    public BigDecimal getLowPrice() {
-        return lowPrice;
-    }
-
-    public void setLowPrice(BigDecimal lowPrice) {
-        this.lowPrice = lowPrice;
-    }
-
-    public long getVolume() {
-        return volume;
-    }
-
-    public void setVolume(long volume) {
-        this.volume = volume;
-    }
-
-    public BigDecimal getTurnover() {
-        return turnover;
-    }
-
-    public void setTurnover(BigDecimal turnover) {
-        this.turnover = turnover;
-    }
-
-    public BigDecimal getMarketCap() {
-        return marketCap;
-    }
-
-    public BigDecimal getPeRatio() {
-        return peRatio;
-    }
-
-    public BigDecimal getEps() {
-        return eps;
-    }
-
-    public String getSource() {
-        return source;
-    }
-
-    public void setSource(String source) {
-        this.source = source;
-    }
-
-    public Instant getLastUpdated() {
-        return lastUpdated;
-    }
-
-    public void touch() {
-        this.lastUpdated = Instant.now();
+    public Stock(String symbol, String companyName, String sector, String instrumentType) {
+        this.symbol = symbol;
+        this.companyName = companyName;
+        this.sector = sector;
+        this.instrumentType = instrumentType;
+        this.source = "NEPSE";
     }
 
     public BigDecimal getChange() {
@@ -170,5 +88,9 @@ public class Stock {
         return ltp.subtract(prevClose)
                 .multiply(BigDecimal.valueOf(100))
                 .divide(prevClose, 2, java.math.RoundingMode.HALF_UP);
+    }
+
+    public void touch() {
+        this.lastUpdated = Instant.now();
     }
 }

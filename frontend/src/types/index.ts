@@ -28,6 +28,8 @@ export interface Stock {
   changePercent: number;
   lastUpdated: string;
   source: string;
+  instrumentType: string;
+  active: boolean;
 }
 
 export interface HistoryPoint {
