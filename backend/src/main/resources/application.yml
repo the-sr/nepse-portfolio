@@ -1,0 +1,91 @@
+server:
+  port: ${SERVER_PORT:8080}
+  compression:
+    enabled: true
+
+spring:
+  application:
+    name: nepse-portfolio
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/nepse_portfolio}
+    username: ${DB_USER:nepse}
+    password: ${DB_PASSWORD:nepse}
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_AUTH:false}
+          starttls:
+            enable: ${MAIL_STARTTLS:false}
+  jackson:
+    default-property-inclusion: non_null
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+  health:
+    # SMTP is optional; do not report the whole app DOWN when it is not configured.
+    mail:
+      enabled: ${MAIL_HEALTH_ENABLED:false}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+app:
+  jwt:
+    # Override in production. Must be at least 32 characters.
+    secret: ${JWT_SECRET:nepse-portfolio-development-secret-key-change-me-please}
+    access-token-minutes: ${JWT_ACCESS_MINUTES:30}
+    refresh-token-days: ${JWT_REFRESH_DAYS:14}
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost:5173,http://localhost:3000,http://localhost}
+  scraper:
+    enabled: ${SCRAPER_ENABLED:true}
+    live-url: ${SCRAPER_LIVE_URL:https://www.sharesansar.com/live-trading}
+    interval-ms: ${SCRAPER_INTERVAL_MS:90000}
+    ignore-market-hours: ${SCRAPER_IGNORE_MARKET_HOURS:false}
+    market-open: "11:00"
+    market-close: "15:00"
+    timezone: Asia/Kathmandu
+    user-agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+    request-timeout-ms: 15000
+  ml:
+    enabled: ${ML_ENABLED:true}
+    base-url: ${ML_SERVICE_URL:http://localhost:8000}
+    timeout-ms: ${ML_TIMEOUT_MS:2500}
+    # Below this class probability the model is not confident enough to override the rules.
+    min-confidence: ${ML_MIN_CONFIDENCE:0.35}
+  contact:
+    admin-email: ${ADMIN_EMAIL:}
+    from: ${MAIL_FROM:no-reply@nepse.local}
+  seed:
+    demo-user: ${SEED_DEMO_USER:true}
+    price-history-days: ${SEED_PRICE_HISTORY_DAYS:260}
+
+logging:
+  level:
+    com.nepse.portfolio: INFO
+    org.springframework.security: WARN

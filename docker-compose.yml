@@ -1,0 +1,89 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nepse-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-nepse_portfolio}
+      POSTGRES_USER: ${POSTGRES_USER:-nepse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nepse}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nepse} -d ${POSTGRES_DB:-nepse_portfolio}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  ml-service:
+    build:
+      context: ./ml-service
+    container_name: nepse-ml
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nepse}:${POSTGRES_PASSWORD:-nepse}@postgres:5432/${POSTGRES_DB:-nepse_portfolio}
+      MODEL_DIR: /app/models
+      CORS_ORIGINS: "*"
+    ports:
+      - "${ML_PORT:-8000}:8000"
+    volumes:
+      - ml_models:/app/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+    container_name: nepse-backend
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-nepse_portfolio}
+      DB_USER: ${POSTGRES_USER:-nepse}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-nepse}
+      JWT_SECRET: ${JWT_SECRET:-change-this-development-secret-key-to-something-long-and-random}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      ML_ENABLED: ${ML_ENABLED:-true}
+      ML_SERVICE_URL: http://ml-service:8000
+      ML_MIN_CONFIDENCE: ${ML_MIN_CONFIDENCE:-0.35}
+      SCRAPER_ENABLED: ${SCRAPER_ENABLED:-true}
+      SCRAPER_IGNORE_MARKET_HOURS: ${SCRAPER_IGNORE_MARKET_HOURS:-false}
+      SCRAPER_INTERVAL_MS: ${SCRAPER_INTERVAL_MS:-90000}
+      SEED_DEMO_USER: ${SEED_DEMO_USER:-true}
+      MAIL_HOST: ${MAIL_HOST:-localhost}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_AUTH: ${MAIL_AUTH:-false}
+      MAIL_STARTTLS: ${MAIL_STARTTLS:-false}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@nepse.local}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ml-service:
+        condition: service_started
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: nepse-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  ml_models:
