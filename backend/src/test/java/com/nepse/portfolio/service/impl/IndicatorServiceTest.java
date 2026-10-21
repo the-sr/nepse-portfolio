@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class IndicatorServiceTest {
 
-    private final IndicatorService service = new IndicatorService();
+    private final IndicatorService service = new IndicatorServiceImpl();
 
     private List<PriceHistory> series(double start, double dailyGain, int count) {
         List<PriceHistory> points = new ArrayList<>();

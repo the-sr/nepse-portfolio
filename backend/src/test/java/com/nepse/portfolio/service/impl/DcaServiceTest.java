@@ -56,7 +56,7 @@ class DcaServiceTest {
         when(portfolioService.portfolio(anyLong())).thenReturn(portfolio());
         when(portfolioService.holdings(anyLong())).thenReturn(List.of(holding()));
         when(settingsService.loadOrCreate(anyLong())).thenReturn(settings);
-        dcaService = new DcaService(portfolioService, settingsService);
+        dcaService = new DcaServiceImpl(portfolioService, settingsService);
     }
 
     @Test
