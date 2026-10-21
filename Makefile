@@ -3,7 +3,7 @@ COMPOSE := docker compose
 
 .PHONY: help up down restart build logs ps clean reset train-ml \
 	backend-build backend-test backend-run frontend-install frontend-build \
-	frontend-test frontend-run ml-install ml-test ml-run test
+	frontend-test frontend-run ml-install ml-test ml-run test smoke phone
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -70,5 +70,10 @@ ml-run: ## Run the ML service with auto-reload
 
 smoke: ## Check a running stack end-to-end (requires curl + jq)
 	bash tests/api-smoke.sh
+
+PHONE_LOGIN ?= u0_a164 ## whoami on the phone; override: make phone PHONE_LOGIN=u0_aXXX
+phone: ## SSH into the phone (USB/adb first; falls back to Wi-Fi)
+	adb forward tcp:8022 tcp:8022 2>/dev/null || true
+	ssh -p 8022 "$(PHONE_LOGIN)@localhost"
 
 test: backend-test frontend-test ml-test ## Run all test suites

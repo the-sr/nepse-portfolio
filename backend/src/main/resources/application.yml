@@ -61,7 +61,10 @@ app:
     access-token-minutes: ${JWT_ACCESS_MINUTES:30}
     refresh-token-days: ${JWT_REFRESH_DAYS:14}
   cors:
-    allowed-origins: ${CORS_ORIGINS:http://localhost:5173,http://localhost:3000,http://localhost}
+    # "*" (pattern) = allow every origin: same-network phones, LAN IPs and
+    # random Cloudflare/ngrok tunnel domains. Narrow it if you ever host this
+    # for a closed user base.
+    allowed-origins: ${CORS_ORIGINS:*}
   scraper:
     enabled: ${SCRAPER_ENABLED:true}
     live-url: ${SCRAPER_LIVE_URL:https://www.sharesansar.com/live-trading}

@@ -85,7 +85,21 @@ unzip -oq "$STAGING/frontend-dist.zip" -d "$STAGING/web" \
 log "stopping backend"
 if [ -f "$NEPSE_HOME/scripts/stop-backend.sh" ]; then
     bash "$NEPSE_HOME/scripts/stop-backend.sh"
+else
+    if [ -f "$NEPSE_HOME/backend.pid" ]; then
+        OLD="$(cat "$NEPSE_HOME/backend.pid" 2>/dev/null)"
+        [ -n "$OLD" ] && kill "$OLD" 2>/dev/null || true
+    fi
 fi
+# Always fall back to a jar-name kill: stale pidfiles, pid reuse or a missing
+# stop script must never leave two instances racing for the port.
+pkill -f '[n]epse-portfolio.jar' 2>/dev/null || true
+for _ in $(seq 1 10); do
+    pgrep -f '[n]epse-portfolio.jar' >/dev/null 2>&1 || break
+    sleep 0.5
+done
+pkill -9 -f '[n]epse-portfolio.jar' 2>/dev/null || true
+rm -f "$NEPSE_HOME/backend.pid"
 
 cp -f "$NEPSE_HOME/nepse-portfolio.jar" "$NEPSE_HOME/nepse-portfolio.jar.prev" 2>/dev/null || true
 mv -f "$STAGING/nepse-portfolio.jar" "$NEPSE_HOME/nepse-portfolio.jar"

@@ -25,9 +25,9 @@ warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*" >&2; }
 
 [ -d /data/data/com.termux ] || { warn "Run this inside Termux"; exit 1; }
 
-log "Installing packages (openjdk-21, postgresql, nginx, curl, unzip, git)"
+log "Installing packages (openjdk-21, postgresql, nginx, openssh, curl, unzip, git)"
 pkg update -y >/dev/null 2>&1 || true
-pkg install -y openjdk-21 postgresql nginx curl unzip git ncurses-utils >/dev/null
+pkg install -y openjdk-21 postgresql nginx openssh curl unzip git ncurses-utils >/dev/null
 
 # ---------------------------------------------------------------- postgres ---
 log "Preparing PostgreSQL (data dir: $PGDATA)"
@@ -89,30 +89,45 @@ if ! psql -d postgres -c 'select 1' >/dev/null 2>&1; then
     pg_ctl -D "$PGDATA" -l "$PGDATA/postgres.log" start
 fi
 EOF
-cat > "$NEPSE_HOME/scripts/stop-backend.sh" <<EOF
+# Quoted heredocs below: nothing is interpolated at generation time, the
+# scripts resolve everything at run time.
+cat > "$NEPSE_HOME/scripts/stop-backend.sh" <<'SH'
 #!/data/data/com.termux/files/usr/bin/sh
-. "$NEPSE_HOME/.env"
-if [ -f "$NEPSE_HOME/backend.pid" ] && kill -0 "$(cat "$NEPSE_HOME/backend.pid")" 2>/dev/null; then
-    kill "$(cat "$NEPSE_HOME/backend.pid")" 2>/dev/null || true
-    sleep 5
-    kill -9 "$(cat "$NEPSE_HOME/backend.pid")" 2>/dev/null || true
+PIDFILE="$HOME/nepse/backend.pid"
+PID=""
+if [ -f "$PIDFILE" ]; then
+    PID="$(cat "$PIDFILE" 2>/dev/null)"
 fi
-rm -f "$NEPSE_HOME/backend.pid"
-EOF
-cat > "$NEPSE_HOME/scripts/start-backend.sh" <<EOF
+if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+    kill "$PID" 2>/dev/null || true
+    i=0
+    while [ "$i" -lt 12 ]; do
+        kill -0 "$PID" 2>/dev/null || break
+        sleep 0.5
+        i=$((i + 1))
+    done
+    kill -9 "$PID" 2>/dev/null || true
+fi
+rm -f "$PIDFILE"
+# Belt & braces: also catch instances the pidfile missed (stale pid, races)
+pkill -f '[n]epse-portfolio.jar' 2>/dev/null || true
+echo "backend stopped"
+SH
+cat > "$NEPSE_HOME/scripts/start-backend.sh" <<'SH'
 #!/data/data/com.termux/files/usr/bin/sh
-. "$NEPSE_HOME/.env"
-cd "$NEPSE_HOME"
-nohup java \$JAVA_OPTS -jar nepse-portfolio.jar >> "$NEPSE_HOME/backend.log" 2>&1 &
-echo \$! > "$NEPSE_HOME/backend.pid"
-echo "backend starting (pid \$(cat "$NEPSE_HOME/backend.pid"))"
-EOF
-cat > "$NEPSE_HOME/scripts/start-web.sh" <<EOF
+. "$HOME/nepse/.env"
+cd "$NEPSE_HOME" || cd /data/data/com.termux/files/home/nepse || exit 1
+nohup java $JAVA_OPTS -jar "$NEPSE_HOME/nepse-portfolio.jar" >> "$NEPSE_HOME/backend.log" 2>&1 &
+echo $! > "$NEPSE_HOME/backend.pid"
+echo "backend starting (pid $(cat "$NEPSE_HOME/backend.pid"))"
+SH
+cat > "$NEPSE_HOME/scripts/start-web.sh" <<'SH'
 #!/data/data/com.termux/files/usr/bin/sh
 nginx -s quit 2>/dev/null || true
 sleep 1
+nginx -t 2>/dev/null || echo "nginx config test failed - check $HOME/nepse/nginx-error.log"
 nginx
-EOF
+SH
 chmod +x "$NEPSE_HOME"/scripts/*.sh
 
 # ------------------------------------------------------------------ nginx ----
@@ -123,7 +138,8 @@ cat > "$PREFIX/etc/nginx/nginx.conf" <<EOF
 worker_processes 1;
 error_log $NEPSE_HOME/nginx-error.log;
 pid $PREFIX/var/run/nginx-nepse.pid;
-daemon off;
+# NOTE: no "daemon off;" here — with it, `nginx` blocks the calling script
+# forever (that was the hang you hit on setup). Default daemonize-on-start.
 
 events { worker_connections 512; }
 
@@ -203,19 +219,30 @@ chmod +x "$NEPSE_HOME/deploy.sh" 2>/dev/null || true
 log "Registering boot autostart (requires the Termux:Boot app)"
 BOOT_DIR="$HOME/.termux/boot"
 mkdir -p "$BOOT_DIR"
-cat > "$BOOT_DIR/01-nepse.sh" <<EOF
+cat > "$BOOT_DIR/01-nepse.sh" <<'SH'
 #!/data/data/com.termux/files/usr/bin/sh
 termux-wake-lock
 sleep 20
-bash "$NEPSE_HOME/scripts/start-postgres.sh"
-bash "$NEPSE_HOME/scripts/start-backend.sh"
-bash "$NEPSE_HOME/scripts/start-web.sh"
-bash "$NEPSE_HOME/scripts/autoupdate.sh"
-bash "$NEPSE_HOME/deploy.sh" >> "$NEPSE_HOME/deploy.log" 2>&1
-EOF
+# clean slate: nothing may survive from a previous session
+pg_ctl -D "$HOME/pgdata" -l "$HOME/pgdata/postgres.log" start 2>/dev/null || true
+sshd 2>/dev/null || true
+bash "$HOME/nepse/scripts/start-postgres.sh"
+nginx -s quit 2>/dev/null || true
+sleep 1
+pkill -f '[n]epse-portfolio.jar' 2>/dev/null || true
+rm -f "$HOME/nepse/backend.pid"
+bash "$HOME/nepse/scripts/start-web.sh"
+bash "$HOME/nepse/scripts/start-backend.sh"
+bash "$HOME/nepse/scripts/autoupdate.sh"
+sleep 90
+bash "$HOME/nepse/deploy.sh" >> "$HOME/nepse/deploy.log" 2>&1
+SH
 chmod +x "$BOOT_DIR/01-nepse.sh"
 
 termux-wake-lock
+# make the phone reachable from a PC right now (docs: `make phone` / ssh -p 8022)
+command -v sshd >/dev/null || pkg install -y openssh >/dev/null
+(sshd 2>/dev/null || true)
 
 # ------------------------------------------------------------------ start ----
 log "Starting services for the first time"
@@ -241,12 +268,15 @@ fi
 cat <<'EOF'
 
 Setup complete. Next steps:
-  1. App URL (on the phone / LAN):   http://<phone-ip>:3000
-  2. Public URL for friends:         cloudflared tunnel --url http://localhost:3000
+  1. Control the phone from your PC (keyboard comfort): ssh -p 8022 <whoami>@<phone-ip>
+     (make phone on your PC does the adb-forward variant; a password was never
+     part of setup, the one you typed with `passwd` is the SSH password)
+  2. App URL (on the phone / LAN):   http://<phone-ip>:3000
+  3. Public URL for friends:         cloudflared tunnel --url http://localhost:3000
      (see docs/deploy-android.md for a stable ngrok static domain option)
-  3. Updates happen automatically every hour.
+  4. Updates happen automatically every hour.
      Manual redeploy any time:      bash ~/nepse/deploy.sh
-  4. Recommended Android hardening:  see docs/deploy-android.md
+  5. Recommended Android hardening:  see docs/deploy-android.md
      (battery unrestricted, phantom-process fix, Termux:Boot)
 Reminder: recommendations in the app are educational, not financial advice.
 EOF
