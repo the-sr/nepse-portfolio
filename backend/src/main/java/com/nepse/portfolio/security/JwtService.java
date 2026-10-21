@@ -1,7 +1,7 @@
 package com.nepse.portfolio.security;
 
-import com.nepse.portfolio.user.Role;
-import com.nepse.portfolio.user.User;
+import com.nepse.portfolio.domain.Role;
+import com.nepse.portfolio.domain.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;

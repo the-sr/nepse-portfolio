@@ -1,8 +1,8 @@
 package com.nepse.portfolio.security;
 
 import com.nepse.portfolio.common.ApiException;
-import com.nepse.portfolio.user.User;
-import com.nepse.portfolio.user.UserRepository;
+import com.nepse.portfolio.domain.User;
+import com.nepse.portfolio.repository.UserRepository;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 

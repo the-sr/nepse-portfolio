@@ -1,7 +1,7 @@
 package com.nepse.portfolio.security;
 
-import com.nepse.portfolio.user.User;
-import com.nepse.portfolio.user.UserRepository;
+import com.nepse.portfolio.domain.User;
+import com.nepse.portfolio.repository.UserRepository;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
