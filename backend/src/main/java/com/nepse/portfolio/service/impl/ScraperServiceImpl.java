@@ -12,6 +12,8 @@ import com.nepse.portfolio.repository.PriceHistoryRepository;
 import com.nepse.portfolio.domain.Stock;
 import com.nepse.portfolio.repository.StockRepository;
 import com.nepse.portfolio.utils.MarketDataProvider;
+import com.nepse.portfolio.utils.NepseApiClient;
+import com.nepse.portfolio.service.MarketCalendarService;
 import com.nepse.portfolio.service.StreamService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,11 +22,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.time.DayOfWeek;
-import java.time.LocalDate;
-import java.time.LocalTime;
+import java.math.BigDecimal;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -49,12 +49,16 @@ public class ScraperServiceImpl implements ScraperService {
     private final StreamService streamService;
     private final TransactionTemplate transaction;
     private final ReentrantLock lock = new ReentrantLock();
+    private final NepseApiClient nepseApiClient;
+    private final MarketCalendarService marketCalendarService;
 
     private final boolean enabled;
-    private final boolean ignoreMarketHours;
     private final ZoneId zone;
-    private final LocalTime marketOpen;
-    private final LocalTime marketClose;
+
+    /** Market status from NEPSE's API is cached so the scheduler does not hammer it. */
+    private static final long STATUS_TTL_MS = 60_000;
+    private volatile MarketStatus statusCache;
+    private volatile long statusFetchedAtMs;
 
     public ScraperServiceImpl(List<MarketDataProvider> providers,
                           StockRepository stockRepository,
@@ -63,11 +67,10 @@ public class ScraperServiceImpl implements ScraperService {
                           AlertService alertService,
                           StreamService streamService,
                           PlatformTransactionManager transactionManager,
+                          NepseApiClient nepseApiClient,
+                          MarketCalendarService marketCalendarService,
                           @Value("${app.scraper.enabled:true}") boolean enabled,
-                          @Value("${app.scraper.ignore-market-hours:false}") boolean ignoreMarketHours,
                           @Value("${app.scraper.timezone:Asia/Kathmandu}") String timezone,
-                          @Value("${app.scraper.market-open:11:00}") String marketOpen,
-                          @Value("${app.scraper.market-close:15:00}") String marketClose,
                           @Value("${app.market.providers:nepse,sharesansar}") String providerOrder) {
         this.stockRepository = stockRepository;
         this.historyRepository = historyRepository;
@@ -75,11 +78,10 @@ public class ScraperServiceImpl implements ScraperService {
         this.alertService = alertService;
         this.streamService = streamService;
         this.transaction = new TransactionTemplate(transactionManager);
+        this.nepseApiClient = nepseApiClient;
+        this.marketCalendarService = marketCalendarService;
         this.enabled = enabled;
-        this.ignoreMarketHours = ignoreMarketHours;
         this.zone = ZoneId.of(timezone);
-        this.marketOpen = LocalTime.parse(marketOpen);
-        this.marketClose = LocalTime.parse(marketClose);
         this.providers = orderProviders(providers, providerOrder);
         if (this.providers.isEmpty()) {
             log.warn("No market data providers are enabled; live prices will not update");
@@ -93,13 +95,14 @@ public class ScraperServiceImpl implements ScraperService {
         if (!enabled) {
             return status("Scraper is disabled by configuration");
         }
-        if (!force && !ignoreMarketHours && !isMarketOpen()) {
-            return status("Market is closed");
-        }
         if (!lock.tryLock()) {
             return status("A scrape is already running");
         }
 
+        // Scraping runs regardless of the schedule; the dedupe below makes
+        // closed-session runs harmless (nothing new, nothing written). This
+        // keeps working even when NEPSE changes its trading week again.
+        MarketStatus market = marketStatus();
         ScrapeRun run = new ScrapeRun("auto");
         try {
             FetchOutcome outcome = fetchQuotes();
@@ -112,14 +115,20 @@ public class ScraperServiceImpl implements ScraperService {
 
             run.finish(true, outcome.quotes().size(),
                     "Matched " + result.matched() + " of " + outcome.quotes().size()
-                            + " quotes from " + outcome.provider());
+                            + " quotes from " + outcome.provider()
+                            + "; " + result.updated() + " updated, "
+                            + result.unchanged() + " unchanged"
+                            + (market.open() ? "" : " (market closed)"));
             runRepository.save(run);
 
-            streamService.broadcastPrices(result.dtos());
-            alertService.evaluate(result.stocks());
+            if (!result.dtos().isEmpty()) {
+                streamService.broadcastPrices(result.dtos());
+                alertService.evaluate(result.stocks());
+            }
 
-            log.info("Market data refreshed from {}: {} quotes, {} matched",
-                    outcome.provider(), outcome.quotes().size(), result.matched());
+            log.info("Market data refreshed from {}: {} quotes, {} matched, {} updated, {} unchanged{}",
+                    outcome.provider(), outcome.quotes().size(), result.matched(),
+                    result.updated(), result.unchanged(), market.open() ? "" : " (market closed)");
             return status(null);
         } catch (Exception ex) {
             run.finish(false, 0, truncate(ex.getMessage(), 950));
@@ -174,12 +183,24 @@ public class ScraperServiceImpl implements ScraperService {
 
         List<Stock> updated = new ArrayList<>();
         int matched = 0;
+        int updatedCount = 0;
+        int unchanged = 0;
 
         for (ScrapedQuote quote : quotes) {
             Stock stock = stocks.get(quote.symbol().toUpperCase(Locale.ROOT));
             if (stock == null) {
                 continue;
             }
+            matched++;
+
+            // Store only what is actually new: identical data is skipped so that
+            // runs outside the session (or off-calendar runs) write nothing.
+            if (!hasChanged(stock, quote)) {
+                unchanged++;
+                continue;
+            }
+            updatedCount++;
+
             LocalDate barDate = quote.asOf() == null || quote.asOf().isAfter(today) ? today : quote.asOf();
 
             stock.setLtp(quote.ltp());
@@ -211,19 +232,52 @@ public class ScraperServiceImpl implements ScraperService {
         }
 
         stockRepository.saveAll(updated);
-        return new ApplyResult(updated, updated.stream().map(StockDto::from).toList(), matched);
+        return new ApplyResult(updated, updated.stream().map(StockDto::from).toList(),
+                matched, updatedCount, unchanged);
     }
 
-    public boolean isMarketOpen() {
-        ZonedDateTime now = ZonedDateTime.now(zone);
-        DayOfWeek day = now.getDayOfWeek();
-        // NEPSE currently trades Monday to Friday (verified against the exchange's
-        // own data in Oct 2026); only the weekend is closed.
-        if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
-            return false;
+    /**
+     * True when the quote carries anything new for the stock row. Every scalar
+     * is compared so a quiet post-session sweep against yesterday's data is a
+     * no-op instead of re-writing the same values over and over.
+     */
+    static boolean hasChanged(Stock stock, ScrapedQuote quote) {
+        return differs(stock.getLtp(), quote.ltp())
+                || differs(stock.getOpenPrice(), quote.open())
+                || differs(stock.getHighPrice(), quote.high())
+                || differs(stock.getLowPrice(), quote.low())
+                || differs(stock.getPrevClose(), quote.prevClose())
+                || differs(stock.getTurnover(), quote.turnover())
+                || stock.getVolume() != quote.volume();
+    }
+
+    private static boolean differs(BigDecimal one, BigDecimal other) {
+        if (one == null || other == null) {
+            return one != other;
         }
-        LocalTime time = now.toLocalTime();
-        return !time.isBefore(marketOpen) && !time.isAfter(marketClose);
+        return one.compareTo(other) != 0;
+    }
+
+    private MarketStatus marketStatus() {
+        long now = System.currentTimeMillis();
+        MarketStatus cached = statusCache;
+        if (cached != null && now - statusFetchedAtMs < STATUS_TTL_MS) {
+            return cached;
+        }
+        Boolean open = nepseApiClient.fetchMarketStatus().orElse(null);
+        MarketStatus resolved = open != null
+                ? new MarketStatus(open, StatusSource.API)
+                : new MarketStatus(marketCalendarService.isMarketOpen(), StatusSource.CALENDAR);
+        statusFetchedAtMs = now;
+        statusCache = resolved;
+        return resolved;
+    }
+
+    @Override
+    public boolean isMarketOpen() {
+        // Calendar-only check; NEPSE's own verdict is reported through the
+        // "marketStatus" entry of the status payload.
+        return marketCalendarService.isMarketOpen();
     }
 
     public Map<String, Object> status(String message) {
@@ -237,6 +291,17 @@ public class ScraperServiceImpl implements ScraperService {
         payload.put("providers", providers.stream().map(p -> Map.of(
                 "name", p.name(),
                 "description", p.description())).toList());
+
+        MarketStatus market = marketStatus();
+        payload.put("marketStatus", Map.of(
+                "open", market.open(),
+                "source", market.source().name()));
+        MarketCalendarService.CalendarView calendar = marketCalendarService.view();
+        payload.put("calendar", Map.of(
+                "tradingDays", calendar.tradingDays(),
+                "openTime", calendar.openTime(),
+                "closeTime", calendar.closeTime(),
+                "source", calendar.source()));
         if (message != null) {
             payload.put("message", message);
         }
@@ -288,7 +353,15 @@ public class ScraperServiceImpl implements ScraperService {
     private record FetchOutcome(String provider, List<ScrapedQuote> quotes) {
     }
 
-    private record ApplyResult(List<Stock> stocks, List<StockDto> dtos, int matched) {
+    private record ApplyResult(List<Stock> stocks, List<StockDto> dtos, int matched,
+                               int updated, int unchanged) {
+    }
+
+    private enum StatusSource {
+        API, CALENDAR
+    }
+
+    private record MarketStatus(boolean open, StatusSource source) {
     }
 
     private record BarKey(Long stockId, LocalDate tradeDate) {

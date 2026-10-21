@@ -20,6 +20,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * Thin HTTP client for NEPSE's undocumented public endpoints.
@@ -46,6 +49,7 @@ public class NepseApiClient {
 
     private final String baseUrl;
     private final String liveMarketPath;
+    private final String marketOpenPath;
     private final String securityListPath;
     private final String companyListPath;
     private final String userAgent;
@@ -55,6 +59,7 @@ public class NepseApiClient {
                           NepseAuthClient authClient,
                           @Value("${app.nepse.base-url:https://www.nepalstock.com}") String baseUrl,
                           @Value("${app.nepse.live-market-path:/api/nots/lives-market}") String liveMarketPath,
+                          @Value("${app.nepse.market-open-path:/api/nots/market-open}") String marketOpenPath,
                           @Value("${app.nepse.security-list-path:/api/nots/security?nonDelisted=true}") String securityListPath,
                           @Value("${app.nepse.company-list-path:/api/nots/company/list}") String companyListPath,
                           @Value("${app.nepse.user-agent}") String userAgent,
@@ -63,6 +68,7 @@ public class NepseApiClient {
         this.authClient = authClient;
         this.baseUrl = stripTrailingSlash(baseUrl);
         this.liveMarketPath = liveMarketPath;
+        this.marketOpenPath = marketOpenPath;
         this.securityListPath = securityListPath;
         this.companyListPath = companyListPath;
         this.userAgent = userAgent;
@@ -84,6 +90,61 @@ public class NepseApiClient {
     /** Every non-delisted security, including bonds, funds and promoter shares. */
     public List<NepseSecurity> fetchActiveSecurities() {
         return getList(securityListPath, SECURITY_LIST);
+    }
+
+    /**
+     * Tolerant probe of NEPSE's market-status endpoint. Returns an empty
+     * {@link Optional} when the endpoint is down or the payload is
+     * unrecognised - the caller then falls back to its own calendar.
+     */
+    public Optional<Boolean> fetchMarketStatus() {
+        try {
+            Boolean open = parseMarketStatus(objectMapper, fetchBody(marketOpenPath));
+            if (open == null) {
+                log.warn("NEPSE market status endpoint returned an unexpected payload");
+                return Optional.empty();
+            }
+            return Optional.of(open);
+        } catch (Exception ex) {
+            log.warn("NEPSE market status unavailable: {}", ex.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Accepts every payload shape NEPSE has shipped so far, e.g.
+     * {@code {"open":"true","businessDate":"2026-10-21"}},
+     * {@code {"marketOpen":true}} or {@code {"status":"OPEN"}}.
+     * {@code null} means "did not understand".
+     */
+    static Boolean parseMarketStatus(ObjectMapper mapper, String body) {
+        JsonNode root;
+        try {
+            root = mapper.readTree(body);
+        } catch (IOException ex) {
+            return null;
+        }
+        if (root == null || !root.isObject()) {
+            return null;
+        }
+        for (String field : List.of("open", "marketOpen", "isOpen", "isMarketOpen",
+                "marketStatus", "status")) {
+            JsonNode value = root.path(field);
+            if (value.isMissingNode() || value.isNull()) {
+                continue;
+            }
+            if (value.isBoolean()) {
+                return value.asBoolean();
+            }
+            String text = value.asText("").trim().toUpperCase(Locale.ROOT);
+            if (text.equals("TRUE") || text.equals("Y") || text.equals("YES") || text.equals("OPEN")) {
+                return true;
+            }
+            if (text.equals("FALSE") || text.equals("N") || text.equals("NO") || text.equals("CLOSED")) {
+                return false;
+            }
+        }
+        return null;
     }
 
     /** Company metadata: name, sector and NEPSE's instrument classification. */

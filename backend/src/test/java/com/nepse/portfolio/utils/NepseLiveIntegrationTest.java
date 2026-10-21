@@ -32,7 +32,8 @@ class NepseLiveIntegrationTest {
                 USER_AGENT, 20_000, 40);
         NepseApiClient client = new NepseApiClient(mapper, auth,
                 "https://www.nepalstock.com", "/api/nots/lives-market",
-                "/api/nots/security?nonDelisted=true", "/api/nots/company/list",
+                "/api/nots/market-open", "/api/nots/security?nonDelisted=true",
+                "/api/nots/company/list",
                 USER_AGENT, 20_000);
 
         List<NepseLiveQuote> quotes = client.fetchLiveMarket();

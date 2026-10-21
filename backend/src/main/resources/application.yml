@@ -66,12 +66,16 @@ app:
     enabled: ${SCRAPER_ENABLED:true}
     live-url: ${SCRAPER_LIVE_URL:https://www.sharesansar.com/live-trading}
     interval-ms: ${SCRAPER_INTERVAL_MS:90000}
-    ignore-market-hours: ${SCRAPER_IGNORE_MARKET_HOURS:false}
-    market-open: "11:00"
-    market-close: "15:00"
     timezone: Asia/Kathmandu
     user-agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
     request-timeout-ms: 15000
+  # Trading week + session times. Only a fallback: it is stored per deployment in
+  # the app_settings table and admins edit it via PUT /api/admin/market/calendar.
+  # NEPSE has changed its trading week before (Sun-Thu -> Mon-Fri).
+  market-calendar:
+    trading-days: ${MARKET_TRADING_DAYS:MON,TUE,WED,THU,FRI}
+    market-open: "11:00"
+    market-close: "15:00"
   # Live quote providers, tried in order until one succeeds.
   market:
     providers: ${MARKET_PROVIDERS:nepse,sharesansar}

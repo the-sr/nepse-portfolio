@@ -1,6 +1,7 @@
 package com.nepse.portfolio.service.impl;
 
 import com.nepse.portfolio.service.HistoryBackfillService;
+import com.nepse.portfolio.service.MarketCalendarService;
 import com.nepse.portfolio.domain.User;
 import com.nepse.portfolio.utils.SocrateaiCsv;
 
@@ -19,7 +20,6 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -99,6 +99,7 @@ public class HistoryBackfillServiceImpl implements HistoryBackfillService {
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transaction;
     private final StockRepository stockRepository;
+    private final MarketCalendarService marketCalendarService;
     private final HttpClient http;
     private final String baseUrl;
     private final int parallelism;
@@ -107,12 +108,14 @@ public class HistoryBackfillServiceImpl implements HistoryBackfillService {
     public HistoryBackfillServiceImpl(JdbcTemplate jdbc,
                                   PlatformTransactionManager transactionManager,
                                   StockRepository stockRepository,
+                                  MarketCalendarService marketCalendarService,
                                   @Value("${app.history.backfill.base-url:https://raw.githubusercontent.com/socrateai-official/nepse-open-data/main}") String baseUrl,
                                   @Value("${app.history.backfill.parallelism:6}") int parallelism,
                                   @Value("${app.scraper.timezone:Asia/Kathmandu}") String timezone) {
         this.jdbc = jdbc;
         this.transaction = new TransactionTemplate(transactionManager);
         this.stockRepository = stockRepository;
+        this.marketCalendarService = marketCalendarService;
         this.baseUrl = stripTrailingSlash(baseUrl);
         this.parallelism = Math.max(1, parallelism);
         this.zone = ZoneId.of(timezone);
@@ -269,13 +272,13 @@ public class HistoryBackfillServiceImpl implements HistoryBackfillService {
     }
 
     private List<LocalDate> tradingDates(int days) {
-        // Ask for a few extra weekdays so holidays do not shorten the history.
+        // Ask for extra candidate days so public holidays do not shorten the
+        // history; the trading week itself comes from the editable calendar.
         int wanted = days + Math.max(20, days / 4);
         List<LocalDate> dates = new ArrayList<>(wanted);
         LocalDate date = LocalDate.now(zone);
         while (dates.size() < wanted) {
-            DayOfWeek day = date.getDayOfWeek();
-            if (day != DayOfWeek.SATURDAY && day != DayOfWeek.SUNDAY) {
+            if (marketCalendarService.isTradingDay(date)) {
                 dates.add(date);
             }
             date = date.minusDays(1);

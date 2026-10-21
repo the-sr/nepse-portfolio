@@ -4,6 +4,8 @@ import com.nepse.portfolio.service.ScraperService;
 
 import com.nepse.portfolio.service.HistoryBackfillService;
 import com.nepse.portfolio.service.SecurityUniverseService;
+import com.nepse.portfolio.service.MarketCalendarService;
+import com.nepse.portfolio.dto.market.MarketCalendarDtos.MarketCalendarRequest;
 import com.nepse.portfolio.utils.MlClient;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,15 +18,18 @@ public class AdminController {
     private final ScraperService scraperService;
     private final HistoryBackfillService historyBackfillService;
     private final SecurityUniverseService securityUniverseService;
+    private final MarketCalendarService marketCalendarService;
     private final MlClient mlClient;
 
     public AdminController(ScraperService scraperService,
                            HistoryBackfillService historyBackfillService,
                            SecurityUniverseService securityUniverseService,
+                           MarketCalendarService marketCalendarService,
                            MlClient mlClient) {
         this.scraperService = scraperService;
         this.historyBackfillService = historyBackfillService;
         this.securityUniverseService = securityUniverseService;
+        this.marketCalendarService = marketCalendarService;
         this.mlClient = mlClient;
     }
 
@@ -36,6 +41,19 @@ public class AdminController {
     @PostMapping("/market/sync")
     public Map<String, Object> sync() {
         return scraperService.scrape(true);
+    }
+
+    /** Current trading week + session times (editable without a redeploy). */
+    @GetMapping("/market/calendar")
+    public MarketCalendarService.CalendarView calendar() {
+        return marketCalendarService.view();
+    }
+
+    /** NEPSE's trading week has changed before; admins update it here. */
+    @PutMapping("/market/calendar")
+    public MarketCalendarService.CalendarView updateCalendar(
+            @RequestBody MarketCalendarRequest request) {
+        return marketCalendarService.update(request);
     }
 
     /**
