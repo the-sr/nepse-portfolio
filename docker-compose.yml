@@ -60,6 +60,8 @@ services:
       NEPSE_ENABLED: ${NEPSE_ENABLED:-true}
       NEPSE_UNIVERSE_ON_STARTUP: ${NEPSE_UNIVERSE_ON_STARTUP:-true}
       HISTORY_BACKFILL_BASE_URL: ${HISTORY_BACKFILL_BASE_URL:-https://raw.githubusercontent.com/socrateai-official/nepse-open-data/main}
+      HISTORY_BACKFILL_AUTO: ${HISTORY_BACKFILL_AUTO:-true}
+      HISTORY_BACKFILL_DAYS: ${HISTORY_BACKFILL_DAYS:-260}
       SEED_DEMO_USER: ${SEED_DEMO_USER:-true}
       MAIL_HOST: ${MAIL_HOST:-localhost}
       MAIL_PORT: ${MAIL_PORT:-587}

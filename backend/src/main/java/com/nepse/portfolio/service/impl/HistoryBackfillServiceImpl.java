@@ -6,6 +6,7 @@ import com.nepse.portfolio.domain.User;
 import com.nepse.portfolio.utils.SocrateaiCsv;
 
 import com.nepse.portfolio.domain.Stock;
+import com.nepse.portfolio.repository.PriceHistoryRepository;
 import com.nepse.portfolio.repository.StockRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,7 +24,9 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.ArrayList;
+import java.util.Optional;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -100,15 +103,18 @@ public class HistoryBackfillServiceImpl implements HistoryBackfillService {
     private final TransactionTemplate transaction;
     private final StockRepository stockRepository;
     private final MarketCalendarService marketCalendarService;
+    private final PriceHistoryRepository historyRepository;
     private final HttpClient http;
     private final String baseUrl;
     private final int parallelism;
     private final ZoneId zone;
+    private final ReentrantLock backfillLock = new ReentrantLock();
 
     public HistoryBackfillServiceImpl(JdbcTemplate jdbc,
                                   PlatformTransactionManager transactionManager,
                                   StockRepository stockRepository,
                                   MarketCalendarService marketCalendarService,
+                                  PriceHistoryRepository historyRepository,
                                   @Value("${app.history.backfill.base-url:https://raw.githubusercontent.com/socrateai-official/nepse-open-data/main}") String baseUrl,
                                   @Value("${app.history.backfill.parallelism:6}") int parallelism,
                                   @Value("${app.scraper.timezone:Asia/Kathmandu}") String timezone) {
@@ -116,6 +122,7 @@ public class HistoryBackfillServiceImpl implements HistoryBackfillService {
         this.transaction = new TransactionTemplate(transactionManager);
         this.stockRepository = stockRepository;
         this.marketCalendarService = marketCalendarService;
+        this.historyRepository = historyRepository;
         this.baseUrl = stripTrailingSlash(baseUrl);
         this.parallelism = Math.max(1, parallelism);
         this.zone = ZoneId.of(timezone);
@@ -130,6 +137,17 @@ public class HistoryBackfillServiceImpl implements HistoryBackfillService {
         if (days < 1 || days > MAX_DAYS) {
             throw new IllegalArgumentException("days must be between 1 and " + MAX_DAYS);
         }
+        if (!backfillLock.tryLock()) {
+            throw new IllegalStateException("A history backfill is already running");
+        }
+        try {
+            return doBackfill(days);
+        } finally {
+            backfillLock.unlock();
+        }
+    }
+
+    private Result doBackfill(int days) {
 
         List<LocalDate> candidates = tradingDates(days);
         Map<LocalDate, List<SocrateaiCsv.Row>> data = new ConcurrentHashMap<>();
@@ -245,11 +263,14 @@ public class HistoryBackfillServiceImpl implements HistoryBackfillService {
             throw new IllegalStateException("No dataset rows matched symbols in the stocks table");
         }
 
-        // Remove everything from the start of the imported window onwards. That
-        // covers the imported range and any synthetic bars the demo seeder created
-        // after the dataset's most recent trading day, while preserving genuinely
-        // older history from a previous, larger import.
-        int deleted = jdbc.update("delete from price_history where trade_date >= ?", min);
+        // Delete exactly the days the dataset provides, and nothing else. Days the
+        // dataset does not cover (public holidays, today while the market is still
+        // live) keep their rows - live-scraped bars must never be destroyed by a
+        // backfill that cannot re-create them.
+        int deleted = 0;
+        for (LocalDate date : data.keySet()) {
+            deleted += jdbc.update("delete from price_history where trade_date = ?", date);
+        }
 
         AtomicInteger written = new AtomicInteger();
         for (int start = 0; start < bars.size(); start += BATCH_SIZE) {
@@ -269,6 +290,47 @@ public class HistoryBackfillServiceImpl implements HistoryBackfillService {
         return new Result(daysRequested, data.size(), Math.max(0, filesRequested - data.size()),
                 missingSamples, written.get(), matchedSymbols.size(), unknown.size(),
                 unknownSamples, deleted, hydrated, min, max);
+    }
+
+    @Override
+    public boolean needsRepair() {
+        LocalDate latest = historyRepository.findLatestDateOverall().orElse(null);
+        if (latest == null) {
+            return true;
+        }
+        return latest.isBefore(lastTradingDay());
+    }
+
+    @Override
+    public Optional<Result> repairIfStale(int windowDays) {
+        int window = Math.max(1, windowDays);
+        if (!needsRepair()) {
+            return Optional.empty();
+        }
+        LocalDate latest = historyRepository.findLatestDateOverall().orElse(null);
+        if (latest == null) {
+            // Fresh database: load the configured full window.
+            return Optional.of(backfill(window));
+        }
+        // App missed some sessions: count the missing trading days and repair
+        // just that slice (plus padding for holidays), never more than the window.
+        int gap = 0;
+        LocalDate date = lastTradingDay();
+        while (gap < window && date.isAfter(latest)) {
+            if (marketCalendarService.isTradingDay(date)) {
+                gap++;
+            }
+            date = date.minusDays(1);
+        }
+        return Optional.of(backfill(Math.max(2, Math.min(window, gap + 2))));
+    }
+
+    private LocalDate lastTradingDay() {
+        LocalDate date = LocalDate.now(zone);
+        for (int i = 0; i < 31 && !marketCalendarService.isTradingDay(date); i++) {
+            date = date.minusDays(1);
+        }
+        return date;
     }
 
     private List<LocalDate> tradingDates(int days) {

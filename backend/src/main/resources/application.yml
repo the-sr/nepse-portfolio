@@ -98,6 +98,12 @@ app:
       # socrateai-official/nepse-open-data (MIT): one adjusted OHLC CSV per trading day.
       base-url: ${HISTORY_BACKFILL_BASE_URL:https://raw.githubusercontent.com/socrateai-official/nepse-open-data/main}
       parallelism: ${HISTORY_BACKFILL_PARALLELISM:6}
+      # Automatic maintenance: on startup (fills a fresh DB, repairs gaps) and a
+      # nightly check after market close that repairs missing days. The manual
+      # admin endpoint always stays available.
+      auto: ${HISTORY_BACKFILL_AUTO:true}
+      days: ${HISTORY_BACKFILL_DAYS:260}
+      repair-cron: "0 40 15 * * MON-FRI"
   ml:
     enabled: ${ML_ENABLED:true}
     base-url: ${ML_SERVICE_URL:http://localhost:8000}

@@ -25,5 +25,9 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long
     @Query("select max(h.tradeDate) from PriceHistory h where h.stockId = :stockId")
     Optional<LocalDate> findLatestDate(@Param("stockId") Long stockId);
 
+    /** Newest bar across the whole table - the heartbeat of stored history. */
+    @Query("select max(h.tradeDate) from PriceHistory h")
+    Optional<LocalDate> findLatestDateOverall();
+
     long countByStockId(Long stockId);
 }
