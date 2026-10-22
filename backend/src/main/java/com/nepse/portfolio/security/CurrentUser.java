@@ -1,6 +1,7 @@
 package com.nepse.portfolio.security;
 
-import com.nepse.portfolio.common.ApiException;
+import lombok.RequiredArgsConstructor;
+import com.nepse.portfolio.exception.ApiException;
 import com.nepse.portfolio.domain.User;
 import com.nepse.portfolio.repository.UserRepository;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -11,13 +12,11 @@ import org.springframework.stereotype.Component;
  * instead of trusting a userId supplied by the client.
  */
 @Component
+@RequiredArgsConstructor
 public class CurrentUser {
 
     private final UserRepository userRepository;
 
-    public CurrentUser(UserRepository userRepository) {
-        this.userRepository = userRepository;
-    }
 
     public User entity() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();

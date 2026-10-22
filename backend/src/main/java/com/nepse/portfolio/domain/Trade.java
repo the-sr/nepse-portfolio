@@ -4,6 +4,8 @@ import com.nepse.portfolio.domain.TradeType;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
@@ -13,6 +15,7 @@ import java.time.Instant;
 @Table(name = "trades")
 @Getter
 @Setter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Trade {
 
     @Id
@@ -49,8 +52,6 @@ public class Trade {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
-    protected Trade() {
-    }
 
     public Trade(Long userId, Long stockId, TradeType type, int quantity, BigDecimal price,
                  BigDecimal brokerage, BigDecimal tax, Instant tradeDate, String notes) {

@@ -4,6 +4,8 @@ import com.nepse.portfolio.domain.Role;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Instant;
@@ -12,6 +14,7 @@ import java.time.Instant;
 @Table(name = "users")
 @Getter
 @Setter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class User {
 
     @Id
@@ -34,8 +37,6 @@ public class User {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
-    protected User() {
-    }
 
     public User(String email, String passwordHash, String name, Role role) {
         this.email = email;

@@ -3,12 +3,15 @@ package com.nepse.portfolio.domain;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 
 @Entity
 @Table(name = "refresh_tokens")
 @Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RefreshToken {
 
     @Id
@@ -30,8 +33,6 @@ public class RefreshToken {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
-    protected RefreshToken() {
-    }
 
     public RefreshToken(Long userId, String token, Instant expiresAt) {
         this.userId = userId;

@@ -3,6 +3,8 @@ package com.nepse.portfolio.domain;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
@@ -12,6 +14,7 @@ import java.time.Instant;
 @Table(name = "stocks")
 @Getter
 @Setter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Stock {
 
     @Id
@@ -67,8 +70,6 @@ public class Stock {
     @Column(name = "last_updated", nullable = false)
     private Instant lastUpdated = Instant.now();
 
-    protected Stock() {
-    }
 
     public Stock(String symbol, String companyName, String sector, String instrumentType) {
         this.symbol = symbol;

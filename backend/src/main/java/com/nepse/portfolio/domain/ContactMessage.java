@@ -3,6 +3,8 @@ package com.nepse.portfolio.domain;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Instant;
@@ -11,6 +13,7 @@ import java.time.Instant;
 @Table(name = "contact_messages")
 @Getter
 @Setter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ContactMessage {
 
     @Id
@@ -32,8 +35,6 @@ public class ContactMessage {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
-    protected ContactMessage() {
-    }
 
     public ContactMessage(String name, String email, String message) {
         this.name = name;

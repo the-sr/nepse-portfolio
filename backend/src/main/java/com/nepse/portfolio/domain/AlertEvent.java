@@ -3,6 +3,8 @@ package com.nepse.portfolio.domain;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -10,6 +12,7 @@ import java.time.Instant;
 @Entity
 @Table(name = "alert_events")
 @Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AlertEvent {
 
     @Id
@@ -34,8 +37,6 @@ public class AlertEvent {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
-    protected AlertEvent() {
-    }
 
     public AlertEvent(Long alertId, Long userId, Long stockId, BigDecimal price, String message) {
         this.alertId = alertId;

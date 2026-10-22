@@ -1,5 +1,6 @@
 package com.nepse.portfolio.security;
 
+import lombok.RequiredArgsConstructor;
 import com.nepse.portfolio.domain.User;
 import com.nepse.portfolio.repository.UserRepository;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -11,13 +12,11 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class CustomUserDetailsService implements UserDetailsService {
 
     private final UserRepository userRepository;
 
-    public CustomUserDetailsService(UserRepository userRepository) {
-        this.userRepository = userRepository;
-    }
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {

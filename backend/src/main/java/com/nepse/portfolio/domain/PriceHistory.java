@@ -3,6 +3,8 @@ package com.nepse.portfolio.domain;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
@@ -12,6 +14,7 @@ import java.time.LocalDate;
 @Table(name = "price_history")
 @Getter
 @Setter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PriceHistory {
 
     @Id
@@ -39,8 +42,6 @@ public class PriceHistory {
     @Column(nullable = false)
     private long volume;
 
-    protected PriceHistory() {
-    }
 
     public PriceHistory(Long stockId, LocalDate tradeDate, BigDecimal openPrice, BigDecimal highPrice,
                         BigDecimal lowPrice, BigDecimal closePrice, long volume) {

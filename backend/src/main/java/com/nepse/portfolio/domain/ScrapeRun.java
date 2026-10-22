@@ -3,6 +3,8 @@ package com.nepse.portfolio.domain;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Instant;
@@ -11,6 +13,7 @@ import java.time.Instant;
 @Table(name = "scrape_runs")
 @Getter
 @Setter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ScrapeRun {
 
     @Id
@@ -34,8 +37,6 @@ public class ScrapeRun {
 
     private String message;
 
-    protected ScrapeRun() {
-    }
 
     public ScrapeRun(String source) {
         this.source = source;

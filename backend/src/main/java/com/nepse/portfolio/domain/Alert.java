@@ -4,6 +4,8 @@ import com.nepse.portfolio.domain.AlertType;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
@@ -13,6 +15,7 @@ import java.time.Instant;
 @Table(name = "alerts")
 @Getter
 @Setter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Alert {
 
     @Id
@@ -44,8 +47,6 @@ public class Alert {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
-    protected Alert() {
-    }
 
     public Alert(Long userId, Long stockId, AlertType type, BigDecimal threshold) {
         this.userId = userId;

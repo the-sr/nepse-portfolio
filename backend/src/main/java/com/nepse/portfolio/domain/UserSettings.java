@@ -3,6 +3,8 @@ package com.nepse.portfolio.domain;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
@@ -12,6 +14,7 @@ import java.time.Instant;
 @Table(name = "user_settings")
 @Getter
 @Setter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class UserSettings {
 
     @Id
@@ -48,8 +51,6 @@ public class UserSettings {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
 
-    protected UserSettings() {
-    }
 
     public UserSettings(Long userId) {
         this.userId = userId;
