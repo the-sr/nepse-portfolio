@@ -27,9 +27,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 /**
  * Thin HTTP client for NEPSE's undocumented public endpoints.
  *
- * <p>Requests carry {@code Authorization: Salter <token>}. A stale token is not
+ * <p>
+ * Requests carry {@code Authorization: Salter <token>}. A stale token is not
  * always rejected with 401 - NEPSE sometimes answers {@code 200} with an empty
- * body - so an empty payload triggers a token refresh and a single retry.</p>
+ * body - so an empty payload triggers a token refresh and a single retry.
+ * </p>
  */
 @Component
 public class NepseApiClient {
@@ -56,14 +58,14 @@ public class NepseApiClient {
     private final Duration requestTimeout;
 
     public NepseApiClient(ObjectMapper objectMapper,
-                          NepseAuthClient authClient,
-                          @Value("${app.nepse.base-url:https://www.nepalstock.com}") String baseUrl,
-                          @Value("${app.nepse.live-market-path:/api/nots/lives-market}") String liveMarketPath,
-                          @Value("${app.nepse.market-open-path:/api/nots/market-open}") String marketOpenPath,
-                          @Value("${app.nepse.security-list-path:/api/nots/security?nonDelisted=true}") String securityListPath,
-                          @Value("${app.nepse.company-list-path:/api/nots/company/list}") String companyListPath,
-                          @Value("${app.nepse.user-agent}") String userAgent,
-                          @Value("${app.nepse.request-timeout-ms:15000}") long requestTimeoutMs) {
+            NepseAuthClient authClient,
+            @Value("${app.nepse.base-url:https://www.nepalstock.com}") String baseUrl,
+            @Value("${app.nepse.live-market-path:/api/nots/lives-market}") String liveMarketPath,
+            @Value("${app.nepse.market-open-path:/api/nots/nepse-data/market-open}") String marketOpenPath,
+            @Value("${app.nepse.security-list-path:/api/nots/security?nonDelisted=true}") String securityListPath,
+            @Value("${app.nepse.company-list-path:/api/nots/company/list}") String companyListPath,
+            @Value("${app.nepse.user-agent}") String userAgent,
+            @Value("${app.nepse.request-timeout-ms:15000}") long requestTimeoutMs) {
         this.objectMapper = objectMapper;
         this.authClient = authClient;
         this.baseUrl = stripTrailingSlash(baseUrl);
@@ -136,11 +138,16 @@ public class NepseApiClient {
             if (value.isBoolean()) {
                 return value.asBoolean();
             }
+            if (value.isNumber() && value.asText().length() <= 1) {
+                return value.asInt() != 0;
+            }
             String text = value.asText("").trim().toUpperCase(Locale.ROOT);
-            if (text.equals("TRUE") || text.equals("Y") || text.equals("YES") || text.equals("OPEN")) {
+            if (text.equals("TRUE") || text.equals("Y") || text.equals("YES")
+                    || text.equals("OPEN") || text.equals("TRADING")) {
                 return true;
             }
-            if (text.equals("FALSE") || text.equals("N") || text.equals("NO") || text.equals("CLOSED")) {
+            if (text.equals("FALSE") || text.equals("N") || text.equals("NO") || text.equals("CLOSED")
+                    || text.equals("CLOSE")) {
                 return false;
             }
         }

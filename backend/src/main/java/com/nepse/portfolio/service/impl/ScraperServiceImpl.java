@@ -23,6 +23,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -54,6 +55,9 @@ public class ScraperServiceImpl implements ScraperService {
 
     private final boolean enabled;
     private final ZoneId zone;
+    /** Session window (config-driven): fetches only run inside it (unless forced). */
+    private final LocalTime activeFrom;
+    private final LocalTime activeTo;
 
     /** Market status from NEPSE's API is cached so the scheduler does not hammer it. */
     private static final long STATUS_TTL_MS = 60_000;
@@ -71,6 +75,8 @@ public class ScraperServiceImpl implements ScraperService {
                           MarketCalendarService marketCalendarService,
                           @Value("${app.scraper.enabled:true}") boolean enabled,
                           @Value("${app.scraper.timezone:Asia/Kathmandu}") String timezone,
+                          @Value("${app.scraper.active-from:11:00}") String activeFrom,
+                          @Value("${app.scraper.active-to:15:00}") String activeTo,
                           @Value("${app.market.providers:nepse,sharesansar}") String providerOrder) {
         this.stockRepository = stockRepository;
         this.historyRepository = historyRepository;
@@ -82,6 +88,8 @@ public class ScraperServiceImpl implements ScraperService {
         this.marketCalendarService = marketCalendarService;
         this.enabled = enabled;
         this.zone = ZoneId.of(timezone);
+        this.activeFrom = LocalTime.parse(activeFrom);
+        this.activeTo = LocalTime.parse(activeTo);
         this.providers = orderProviders(providers, providerOrder);
         if (this.providers.isEmpty()) {
             log.warn("No market data providers are enabled; live prices will not update");
@@ -99,9 +107,14 @@ public class ScraperServiceImpl implements ScraperService {
             return status("A scrape is already running");
         }
 
-        // Scraping runs regardless of the schedule; the dedupe below makes
-        // closed-session runs harmless (nothing new, nothing written). This
-        // keeps working even when NEPSE changes its trading week again.
+        // Session window (default 11:00-15:00 Nepal time): periodic runs make no
+        // requests while NEPSE is closed, saving battery/egress. Admin "force"
+        // bypasses the window; the dedupe still protects every store path.
+        if (!force && !inSession()) {
+            return status("skipped: outside NEPSE session window "
+                    + activeFrom.toString() + "-" + activeTo.toString());
+        }
+
         MarketStatus market = marketStatus();
         ScrapeRun run = new ScrapeRun("auto");
         try {
@@ -249,6 +262,12 @@ public class ScraperServiceImpl implements ScraperService {
                 || differs(stock.getPrevClose(), quote.prevClose())
                 || differs(stock.getTurnover(), quote.turnover())
                 || stock.getVolume() != quote.volume();
+    }
+
+    /** True when, at this instant (in NEPSE's timezone), we are inside the configured window. */
+    private boolean inSession() {
+        LocalTime now = LocalTime.now(zone);
+        return !now.isBefore(activeFrom) && !now.isAfter(activeTo);
     }
 
     private static boolean differs(BigDecimal one, BigDecimal other) {

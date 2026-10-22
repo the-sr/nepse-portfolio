@@ -69,6 +69,11 @@ app:
     enabled: ${SCRAPER_ENABLED:true}
     live-url: ${SCRAPER_LIVE_URL:https://www.sharesansar.com/live-trading}
     interval-ms: ${SCRAPER_INTERVAL_MS:90000}
+    # NEPSE fetch window (in `timezone`). Periodic runs outside the window make
+    # no requests at all; admin force-scrapes bypass it. Set SCRAPER_ACTIVE_TO
+    # to e.g. 15:10 if you want to catch NEPSE's post-close final prints.
+    active-from: ${SCRAPER_ACTIVE_FROM:11:00}
+    active-to: ${SCRAPER_ACTIVE_TO:15:00}
     timezone: Asia/Kathmandu
     user-agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
     request-timeout-ms: 15000

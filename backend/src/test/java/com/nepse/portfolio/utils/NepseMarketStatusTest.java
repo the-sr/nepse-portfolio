@@ -22,6 +22,12 @@ class NepseMarketStatusTest {
         assertThat(NepseApiClient.parseMarketStatus(mapper,
                 "{\"status\":\"CLOSED\"}")).isFalse();
         assertThat(NepseApiClient.parseMarketStatus(mapper,
+                "{\"marketStatus\":\"CLOSE\",\"businessDate\":\"2026-10-21\"}")).isFalse();
+        assertThat(NepseApiClient.parseMarketStatus(mapper,
+                "{\"open\":1}")).isTrue();
+        assertThat(NepseApiClient.parseMarketStatus(mapper,
+                "{\"status\":\"CLOSE\"}")).isFalse();
+        assertThat(NepseApiClient.parseMarketStatus(mapper,
                 "not json")).isNull();
         assertThat(NepseApiClient.parseMarketStatus(mapper,
                 "{\"something\":\"else\"}")).isNull();
