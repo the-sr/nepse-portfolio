@@ -182,18 +182,30 @@ export default function AddTradeModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbol, type, quantity, price, watch('brokerage'), watch('tax')]);
 
+  // react-query requires a strictly boolean `enabled`; a falsy-but-not-boolean
+  // value (like the empty symbol string '') throws on render.
+  const previewEnabled = useMemo(() => {
+    if (!open || !previewInput) {
+      return false;
+    }
+    try {
+      const parsed = JSON.parse(previewInput) as {
+        symbol?: string; type?: string; quantity?: number; price?: number;
+      };
+      return Boolean(
+        typeof parsed.symbol === 'string' && parsed.symbol.length > 0
+        && typeof parsed.quantity === 'number' && parsed.quantity >= 1
+        && ((typeof parsed.price === 'number' && parsed.price > 0) || parsed.type === 'BONUS'),
+      );
+    } catch {
+      return false;
+    }
+  }, [open, previewInput]);
+
   const preview = useQuery<ChargesPreview>({
     queryKey: ['trade-preview', previewInput],
     queryFn: async () => (await api.post('/portfolio/trades/preview', JSON.parse(previewInput))).data,
-    enabled: open && previewInput !== '' && (() => {
-      try {
-        const parsed = JSON.parse(previewInput);
-        return parsed.symbol && parsed.quantity >= 1
-          && (parsed.price > 0 || parsed.type === 'BONUS');
-      } catch {
-        return false;
-      }
-    })(),
+    enabled: previewEnabled,
     staleTime: 15_000,
   });
 
