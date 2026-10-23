@@ -32,4 +32,16 @@ class NepseMarketStatusTest {
         assertThat(NepseApiClient.parseMarketStatus(mapper,
                 "{\"something\":\"else\"}")).isNull();
     }
+
+    @Test
+    void businessDateIsExtractedWhenPresent() {
+        assertThat(NepseApiClient.extractBusinessDate(mapper,
+                "{\"status\":\"CLOSE\",\"businessDate\":\"2026-10-20\"}")).isEqualTo("2026-10-20");
+        assertThat(NepseApiClient.extractBusinessDate(mapper,
+                "{\"open\":\"true\",\"businessDate\":\" 2026-10-21 \"}"))
+                .isEqualTo("2026-10-21");
+        assertThat(NepseApiClient.extractBusinessDate(mapper,
+                "{\"marketOpen\":true}")).isNull();
+        assertThat(NepseApiClient.extractBusinessDate(mapper, "not json")).isNull();
+    }
 }

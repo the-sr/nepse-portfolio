@@ -58,8 +58,9 @@ public class ScraperServiceImpl implements ScraperService {
     private final LocalTime activeFrom;
     private final LocalTime activeTo;
 
-    /** Market status from NEPSE's API is cached so the scheduler does not hammer it. */
-    private static final long STATUS_TTL_MS = 60_000;
+    /** NEPSE's own open/closed verdict is checked roughly hourly (11:00, 12:00,
+     *  13:00, 14:00 and the last cycle before 15:00) and gates the quote fetch. */
+    private static final long STATUS_TTL_MS = 3_600_000;
     private volatile MarketStatus statusCache;
     private volatile long statusFetchedAtMs;
 
@@ -115,6 +116,14 @@ public class ScraperServiceImpl implements ScraperService {
         }
 
         MarketStatus market = marketStatus();
+
+        // NEPSE's verdict gates the fetch: holidays, weekends and halts make no
+        // quote requests at all (the dedupe would discard them anyway). Admin
+        // force overrides this exactly like it overrides the session window.
+        if (!force && !market.open()) {
+            return status("skipped: NEPSE reports market closed");
+        }
+
         ScrapeRun run = new ScrapeRun("auto");
         try {
             FetchOutcome outcome = fetchQuotes();
@@ -282,10 +291,10 @@ public class ScraperServiceImpl implements ScraperService {
         if (cached != null && now - statusFetchedAtMs < STATUS_TTL_MS) {
             return cached;
         }
-        Boolean open = nepseApiClient.fetchMarketStatus().orElse(null);
-        MarketStatus resolved = open != null
-                ? new MarketStatus(open, StatusSource.API)
-                : new MarketStatus(marketCalendarService.isMarketOpen(), StatusSource.CALENDAR);
+        MarketStatus resolved = nepseApiClient.fetchMarketStatus()
+                .map(open -> new MarketStatus(open.open(), StatusSource.API, open.businessDate()))
+                .orElseGet(() -> new MarketStatus(
+                        marketCalendarService.isMarketOpen(), StatusSource.CALENDAR, null));
         statusFetchedAtMs = now;
         statusCache = resolved;
         return resolved;
@@ -298,11 +307,30 @@ public class ScraperServiceImpl implements ScraperService {
         return marketCalendarService.isMarketOpen();
     }
 
+    /** Logged-in-user view of the market feed, consumed by the status pill. */
+    @Override
+    public Map<String, Object> publicStatus() {
+        MarketStatus market = marketStatus();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("marketStatus", Map.of(
+                "open", market.open(),
+                "source", market.source().name(),
+                "businessDate", market.businessDate() == null ? "" : market.businessDate()));
+        payload.put("totalStocks", stockRepository.count());
+        payload.put("activeStocks", stockRepository.countByActiveTrue());
+        runRepository.findTopByOrderByStartedAtDesc().ifPresent(run -> {
+            payload.put("lastAttempt", run.getStartedAt());
+            payload.put("lastSuccess", run.isSuccess());
+            payload.put("lastRows", run.getRowsParsed());
+            payload.put("lastMessage", run.getMessage());
+        });
+        return payload;
+    }
+
     public Map<String, Object> status(String message) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("enabled", enabled);
-        payload.put("marketOpen", isMarketOpen());
-        payload.put("timezone", zone.getId());
+        payload.put("marketOpen", isMarketOpen());        payload.put("timezone", zone.getId());
         payload.put("totalStocks", stockRepository.count());
         payload.put("activeStocks", stockRepository.countByActiveTrue());
         payload.put("liveStocks", stockRepository.countBySource("SCRAPED"));
@@ -313,7 +341,8 @@ public class ScraperServiceImpl implements ScraperService {
         MarketStatus market = marketStatus();
         payload.put("marketStatus", Map.of(
                 "open", market.open(),
-                "source", market.source().name()));
+                "source", market.source().name(),
+                "businessDate", market.businessDate() == null ? "" : market.businessDate()));
         MarketCalendarService.CalendarView calendar = marketCalendarService.view();
         payload.put("calendar", Map.of(
                 "tradingDays", calendar.tradingDays(),
@@ -379,7 +408,7 @@ public class ScraperServiceImpl implements ScraperService {
         API, CALENDAR
     }
 
-    private record MarketStatus(boolean open, StatusSource source) {
+    private record MarketStatus(boolean open, StatusSource source, String businessDate) {
     }
 
     private record BarKey(Long stockId, LocalDate tradeDate) {

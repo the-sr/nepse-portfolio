@@ -96,20 +96,26 @@ public class NepseApiClient {
     /**
      * Tolerant probe of NEPSE's market-status endpoint. Returns an empty
      * {@link Optional} when the endpoint is down or the payload is
-     * unrecognised - the caller then falls back to its own calendar.
+     * unrecognised - the caller then falls back to its own calendar. Also
+     * carries the market's own business date ("2026-10-20"), the last real
+     * session — which lags the wall clock during holidays.
      */
-    public Optional<Boolean> fetchMarketStatus() {
+    public Optional<MarketOpen> fetchMarketStatus() {
         try {
-            Boolean open = parseMarketStatus(objectMapper, fetchBody(marketOpenPath));
+            String body = fetchBody(marketOpenPath);
+            Boolean open = parseMarketStatus(objectMapper, body);
             if (open == null) {
                 log.warn("NEPSE market status endpoint returned an unexpected payload");
                 return Optional.empty();
             }
-            return Optional.of(open);
+            return Optional.of(new MarketOpen(open, extractBusinessDate(objectMapper, body)));
         } catch (Exception ex) {
             log.warn("NEPSE market status unavailable: {}", ex.getMessage());
             return Optional.empty();
         }
+    }
+
+    public record MarketOpen(boolean open, String businessDate) {
     }
 
     /**
@@ -149,6 +155,20 @@ public class NepseApiClient {
                     || text.equals("CLOSE")) {
                 return false;
             }
+        }
+        return null;
+    }
+
+    /** Best-effort business-date grab; tolerates missing or sparse payloads. */
+    static String extractBusinessDate(ObjectMapper mapper, String body) {
+        try {
+            JsonNode root = mapper.readTree(body);
+            JsonNode value = root.path("businessDate");
+            if (value.isTextual() && !value.asText().isBlank()) {
+                return value.asText().trim();
+            }
+        } catch (IOException ignored) {
+            // The status probe already logged the malformed payload.
         }
         return null;
     }

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
+import MarketStatusPill from '@/components/layout/MarketStatusPill';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { formatPercent, formatPrice, pnlClass } from '@/lib/format';
@@ -142,6 +143,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          <MarketStatusPill />
           <KathmanduClock />
           <button
             onClick={toggleTheme}
