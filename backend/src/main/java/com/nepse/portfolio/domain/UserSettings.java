@@ -43,7 +43,7 @@ public class UserSettings {
     private BigDecimal maxCapitalPerStock = new BigDecimal("100000");
 
     @Column(name = "cgt_short_rate", nullable = false)
-    private BigDecimal cgtShortRate = new BigDecimal("7.5");
+    private BigDecimal cgtShortRate = new BigDecimal("5.00");
 
     @Column(name = "cgt_long_rate", nullable = false)
     private BigDecimal cgtLongRate = new BigDecimal("3.75");
