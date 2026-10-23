@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import {
   Clock3,
   LogOut,
@@ -11,6 +10,7 @@ import {
   Sun,
   UserRound,
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import MarketStatusPill from '@/components/layout/MarketStatusPill';
@@ -44,16 +44,11 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
-  const [query, setQuery] = useState('');
-  const [debounced, setDebounced] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [debounced, setDebounced] = useState('');
   const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(query.trim()), 250);
-    return () => clearTimeout(timer);
-  }, [query]);
 
   useEffect(() => {
     const onClick = (event: MouseEvent) => {
@@ -64,6 +59,11 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
   }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(query.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   const { data: results = [], isFetching } = useQuery<Stock[]>({
     queryKey: ['stock-search', debounced],
@@ -101,10 +101,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setSearchOpen(true);
-              }}
+              onChange={(event) => { setQuery(event.target.value); setSearchOpen(true); }}
               onFocus={() => setSearchOpen(true)}
               onBlur={() => setTimeout(() => setSearchOpen(false), 160)}
               placeholder="Search NEPSE symbols or companies…"
