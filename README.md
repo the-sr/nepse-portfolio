@@ -42,8 +42,13 @@ Browser ──► nginx (React SPA) ──/api──► Spring Boot ──► Po
   refresh every 90 s during NEPSE hours (Mon–Fri 11:00–15:00 NPT) from NEPSE's own live-market
   API, with the Sharesansar table scrape as an automatic fallback. Scrape-run audit log and
   provider health in the admin status endpoint.
-- **Portfolio** — buy/sell trades with fees, FIFO lot matching, remaining-lot average cost,
-  realized and unrealized P&L, day change, allocation weights, transaction history.
+- **Portfolio** — buy/sell/IPO/FPO/right/bonus/auction transactions with the full Nepali cost
+  engine: tiered broker commission, SEBON fee, DP charge (once per scrip per day), FIFO lot
+  matching for quantities, weighted-average cost for tax (Income Tax Act 2058 §95क(2)),
+  realized and unrealized P&L, allocation weights, transaction history, and a live
+  "capital gains tax if you sold everything today" report. Every rate is editable
+  (trade override > user settings > admin global > verified defaults) — see
+  `docs/nepse-costs.md` for the researched schedule and sources.
 - **Charts** — portfolio value history, allocation donut, per-stock price chart with 1M/3M/6M/1Y
   ranges.
 - **Averaging engine** — configurable −5% / −10% / −15% trigger levels, tranche budgets, position

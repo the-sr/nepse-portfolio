@@ -129,6 +129,7 @@ public class DataSeeder implements CommandLineRunner {
         }
         Instant when = Instant.now().minus(daysAgo, ChronoUnit.DAYS);
         tradeRepository.save(new Trade(user.getId(), stock.getId(), type, quantity,
-                new BigDecimal(price), BigDecimal.ZERO, BigDecimal.ZERO, when, "Demo trade"));
+                new BigDecimal(price), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, when, "Demo trade"));
     }
 }

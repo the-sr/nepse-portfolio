@@ -66,7 +66,9 @@ public class FifoCalculator {
             BigDecimal feesPerShare = trade.getFees()
                     .divide(BigDecimal.valueOf(quantity), 8, RoundingMode.HALF_UP);
 
-            if (trade.getType() == TradeType.BUY) {
+            // Every non-SELL type increases the holding (BUY, IPO, FPO, RIGHT,
+            // BONUS at Rs 0, AUCTION); only SELL reduces it.
+            if (NepseCostEngine.increasesQuantity(trade.getType())) {
                 BigDecimal costPerShare = trade.getPrice().add(feesPerShare);
                 lots.addLast(new MutableLot(quantity, costPerShare, trade.getTradeDate()));
                 continue;

@@ -46,7 +46,12 @@ public class UserSettings {
     private BigDecimal cgtShortRate = new BigDecimal("7.5");
 
     @Column(name = "cgt_long_rate", nullable = false)
-    private BigDecimal cgtLongRate = new BigDecimal("5.0");
+    private BigDecimal cgtLongRate = new BigDecimal("3.75");
+
+    /** Full configuration as JSON: commission tiers, SEBON fee, DP charge, CGT slabs.
+     *  Null means "fall through to the admin global rates, then to the defaults". */
+    @Column(name = "trading_rates_json", columnDefinition = "TEXT")
+    private String tradingRatesJson;
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
