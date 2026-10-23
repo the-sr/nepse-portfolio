@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import NepaliDate from 'nepali-date-converter';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
 
@@ -14,10 +15,43 @@ export interface MarketStatusInfo {
   lastMessage?: string | null;
 }
 
+const englishDay = new Intl.DateTimeFormat('en-US', { weekday: 'long' });
+const englishDate = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+});
+
+function parseIsoDate(iso: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
+  if (!match) {
+    return null;
+  }
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/** NEPSE's business date when it supplies one, else today in Nepal time. */
+function todayNptIso(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kathmandu' }).format(new Date());
+}
+
+/** Bikram Sambat rendering for the tooltip: month day, year · weekday (English day).
+ *  Note: the library has no `dddd` token — `ddd` is the full Nepali weekday.
+ *  Empty when conversion fails. */
+function nepaliDateLabel(date: Date): string {
+  try {
+    const d = new NepaliDate(date);
+    return `${d.format('MMMM D, YYYY', 'np')} · ${d.format('ddd', 'np')} (${englishDay.format(date)})`;
+  } catch {
+    return '';
+  }
+}
+
 /**
- * Live market-open verdict straight from NEPSE (falling back to the calendar),
- * plus the market's own business date — the last real session. Hidden when the
- * endpoint has no data yet so the Topbar stays clean.
+ * Market-open verdict from NEPSE (falling back to the calendar), coloured
+ * red/green, dated with the business date when NEPSE supplies it and today
+ * (Nepal time) otherwise. The tooltip carries the Bikram Sambat date.
  */
 export default function MarketStatusPill() {
   const { data } = useQuery<MarketStatusInfo>({
@@ -32,49 +66,31 @@ export default function MarketStatusPill() {
     return null;
   }
 
-  const { open, source, businessDate } = data.marketStatus;
-  const feedTime = data.lastAttempt
-    ? new Intl.DateTimeFormat('en-GB', {
-        timeZone: 'Asia/Kathmandu',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      }).format(new Date(data.lastAttempt))
-    : null;
+  const { open, businessDate } = data.marketStatus;
+  const date = parseIsoDate(businessDate ?? '') ?? parseIsoDate(todayNptIso());
+  if (!date) {
+    return null;
+  }
+
+  const label = `${open ? 'Market Open' : 'Market Closed'} - ${englishDate.format(date)} (${englishDay.format(date)})`;
+  const bs = nepaliDateLabel(date);
 
   return (
     <div
-      className="hidden items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold md:flex"
-      title={data.lastMessage
-        ? `${data.lastMessage}${businessDate ? ` · business date ${businessDate}` : ''}`
-        : businessDate
-          ? `Business date ${businessDate}`
-          : undefined}
+      className="hidden items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold dark:border-white/10 md:flex"
+      title={bs || undefined}
     >
       <span
         className={cn(
           'h-2 w-2 rounded-full',
-          open ? 'bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/60' : 'bg-slate-400 dark:bg-slate-500',
+          open
+            ? 'bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/60'
+            : 'bg-rose-500 shadow-[0_0_6px] shadow-rose-500/60',
         )}
       />
-      <span className={open ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'}>
-        {open ? 'Market Open' : 'Market Closed'}
+      <span className={open ? 'text-emerald-600 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'}>
+        {label}
       </span>
-      {feedTime && data.lastRows != null && (
-        <span className="text-[10px] uppercase tracking-wider text-slate-400">
-          {data.lastRows} quotes · {feedTime} NPT
-        </span>
-      )}
-      {businessDate && (
-        <span className="text-[10px] uppercase tracking-wider text-slate-400">
-          · {businessDate}
-        </span>
-      )}
-      {source === 'CALENDAR' && (
-        <span className="text-[10px] uppercase tracking-wider text-amber-500" title="NEPSE's own verdict is unreachable; using the calendar">
-          (calendar)
-        </span>
-      )}
     </div>
   );
 }
