@@ -81,7 +81,7 @@ app:
   # the app_settings table and admins edit it via PUT /api/admin/market/calendar.
   # NEPSE has changed its trading week before (Sun-Thu -> Mon-Fri).
   market-calendar:
-    trading-days: ${MARKET_TRADING_DAYS:MON,TUE,WED,THU,FRI}
+    trading-days: ${MARKET_TRADING_DAYS:SUN,MON,TUE,WED,THU}
     market-open: "11:00"
     market-close: "15:00"
   # Live quote providers, tried in order until one succeeds.

@@ -5,8 +5,10 @@ import com.nepse.portfolio.service.market.ScraperService;
 import com.nepse.portfolio.service.market.HistoryBackfillService;
 import com.nepse.portfolio.service.market.SecurityUniverseService;
 import com.nepse.portfolio.service.market.MarketCalendarService;
+import com.nepse.portfolio.service.portfolio.TradingRatesService;
 import com.nepse.portfolio.dto.market.MarketCalendarDtos.MarketCalendarRequest;
 import com.nepse.portfolio.utils.ml.MlClient;
+import com.nepse.portfolio.utils.portfolio.TradingRates;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,7 +23,19 @@ public class AdminController {
     private final HistoryBackfillService historyBackfillService;
     private final SecurityUniverseService securityUniverseService;
     private final MarketCalendarService marketCalendarService;
+    private final TradingRatesService tradingRatesService;
     private final MlClient mlClient;
+
+    /** Admin-global commission/SEBON/DP/CGT schedule every user inherits. */
+    @GetMapping("/trading-rates")
+    public TradingRates tradingRates() {
+        return tradingRatesService.global();
+    }
+
+    @PutMapping("/trading-rates")
+    public TradingRates updateTradingRates(@RequestBody TradingRates patch) {
+        return tradingRatesService.updateGlobal(patch);
+    }
 
     @GetMapping("/market/status")
     public Map<String, Object> marketStatus() {

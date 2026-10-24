@@ -103,20 +103,84 @@ export interface Portfolio {
   sectorAllocation: AllocationSlice[];
 }
 
+export type TradeType = 'BUY' | 'SELL' | 'IPO' | 'FPO' | 'BONUS' | 'RIGHT' | 'AUCTION';
+
 export interface Trade {
   id: number;
   stockId: number;
   symbol: string;
   companyName: string;
-  type: 'BUY' | 'SELL';
+  type: TradeType;
   quantity: number;
   price: number;
   brokerage: number;
+  sebonFee: number;
+  dpCharge: number;
   tax: number;
   fees: number;
   total: number;
   tradeDate: string;
   notes: string | null;
+}
+
+export interface CommissionTier {
+  upTo: number | null;
+  percent: number | null;
+  flat: number | null;
+}
+
+/** Nepali cost/tax schedule; null fields inherit from the next layer. */
+export interface TradingRates {
+  commissionTiers: CommissionTier[] | null;
+  sebonFeePercent: number | null;
+  dpChargePerScripPerDay: number | null;
+  cgtShortRate: number | null;
+  cgtLongRate: number | null;
+  cgtLongThresholdDays: number | null;
+  buyFeesIncludedInBasis: boolean | null;
+}
+
+export interface ChargesPreview {
+  symbol: string;
+  type: string;
+  quantity: number;
+  price: number;
+  amount: number;
+  brokerage: number;
+  sebonFee: number;
+  dpCharge: number;
+  cgt: number;
+  cgtRate: number;
+  holdingDays: number;
+  wacPerShare: number;
+  totalCost: number;
+  netProceeds: number;
+  netProfit: number;
+}
+
+export interface CgtLot {
+  stockId: number;
+  symbol: string;
+  companyName: string;
+  quantity: number;
+  wacPerShare: number;
+  invested: number;
+  ltp: number;
+  gainIfSold: number;
+  feesIfSold: number;
+  cgtRate: number;
+  estimatedCgt: number;
+  netAfterTax: number;
+  earliestLotDate: string;
+  holdingDays: number;
+  slab: 'short' | 'long';
+}
+
+export interface CgtReport {
+  totalGainIfSold: number;
+  totalEstimatedCgt: number;
+  totalNetAfterTax: number;
+  lots: CgtLot[];
 }
 
 export interface HistoricalValue {

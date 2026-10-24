@@ -52,9 +52,22 @@ public class PortfolioController {
         return portfolioService.addTrade(currentUser.id(), request);
     }
 
+    /** Fee/tax preview for the trade form — same math as booking, nothing saved. */
+    @PostMapping("/trades/preview")
+    public ChargesPreviewDto previewTrade(@Valid @RequestBody TradeRequest request) {
+        return portfolioService.previewTrade(currentUser.id(), request);
+    }
+
+    /** "Sell everything today" capital-gains estimate (WAC basis, current rates). */
+    @GetMapping("/cgt")
+    public CgtReportDto cgt() {
+        return portfolioService.cgtReport(currentUser.id());
+    }
+
     @DeleteMapping("/trades/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteTrade(@PathVariable Long id) {
         portfolioService.deleteTrade(currentUser.id(), id);
     }
 }
+

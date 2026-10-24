@@ -3,11 +3,13 @@ package com.nepse.portfolio.controller.market;
 import lombok.RequiredArgsConstructor;
 import com.nepse.portfolio.dto.market.MarketDtos;
 import com.nepse.portfolio.service.market.MarketService;
+import com.nepse.portfolio.service.market.ScraperService;
 
 import com.nepse.portfolio.dto.market.MarketDtos.*;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/market")
@@ -15,6 +17,7 @@ import java.util.List;
 public class MarketController {
 
     private final MarketService marketService;
+    private final ScraperService scraperService;
 
 
     @GetMapping("/stocks")
@@ -49,5 +52,11 @@ public class MarketController {
     @GetMapping("/sector-names")
     public List<String> sectorNames() {
         return marketService.sectorsList();
+    }
+
+    /** Live market-open verdict + last feed result, for the UI status pill. */
+    @GetMapping("/status")
+    public Map<String, Object> status() {
+        return scraperService.publicStatus();
     }
 }

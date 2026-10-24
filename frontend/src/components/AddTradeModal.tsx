@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -11,15 +11,25 @@ import SymbolPicker from '@/components/SymbolPicker';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { formatNpr, formatPrice } from '@/lib/format';
-import type { Holding, Stock } from '@/types';
+import type { ChargesPreview, Holding, Stock, TradeType } from '@/types';
+
+const TRADE_TYPES: { value: TradeType; label: string; hint: string }[] = [
+  { value: 'BUY', label: 'Buy', hint: 'Secondary-market purchase — commission + SEBON fee apply.' },
+  { value: 'SELL', label: 'Sell', hint: 'Commission + SEBON + DP Rs 25/scrip/day + CGT on the gain.' },
+  { value: 'IPO', label: 'IPO', hint: 'Allotted at the offer price — no fees.' },
+  { value: 'FPO', label: 'FPO', hint: 'Allotted at the offer price — no fees.' },
+  { value: 'RIGHT', label: 'Right', hint: 'Right subscription at the offer price — no fees.' },
+  { value: 'BONUS', label: 'Bonus', hint: 'Free shares at Rs 0 — dilutes your average cost.' },
+  { value: 'AUCTION', label: 'Auction', hint: 'Priced like a buy; brokers may add their own charge.' },
+];
 
 const schema = z.object({
   symbol: z.string().min(1, 'Choose a symbol'),
-  type: z.enum(['BUY', 'SELL']),
+  type: z.enum(['BUY', 'SELL', 'IPO', 'FPO', 'BONUS', 'RIGHT', 'AUCTION']),
   quantity: z.number().int().positive('Quantity must be at least 1'),
-  price: z.number().positive('Price must be greater than zero'),
-  brokerage: z.number().min(0),
-  tax: z.number().min(0),
+  price: z.number().min(0, 'Price cannot be negative'),
+  brokerage: z.number().min(0).optional(),
+  tax: z.number().min(0).optional(),
   tradeDate: z.string().min(1, 'Pick a date'),
   notes: z.string().max(500).optional(),
 });
@@ -31,6 +41,9 @@ function todayInput() {
   const offset = now.getTimezoneOffset();
   return new Date(now.getTime() - offset * 60_000).toISOString().slice(0, 10);
 }
+
+const typeHint = (type: TradeType | undefined) =>
+  TRADE_TYPES.find((item) => item.value === type)?.hint ?? '';
 
 export default function AddTradeModal({
   open,
@@ -56,14 +69,15 @@ export default function AddTradeModal({
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       type: 'BUY',
       quantity: 1,
-      brokerage: 0,
-      tax: 0,
+      brokerage: undefined,
+      tax: undefined,
       tradeDate: todayInput(),
       notes: '',
       symbol: defaultSymbol ?? '',
@@ -76,8 +90,8 @@ export default function AddTradeModal({
       reset({
         type: 'BUY',
         quantity: 1,
-        brokerage: 0,
-        tax: 0,
+        brokerage: undefined,
+        tax: undefined,
         tradeDate: todayInput(),
         notes: '',
         symbol: defaultSymbol ?? '',
@@ -90,8 +104,6 @@ export default function AddTradeModal({
   const type = watch('type');
   const quantity = watch('quantity');
   const price = watch('price');
-  const brokerage = watch('brokerage');
-  const tax = watch('tax');
 
   const selectedStock = useMemo(
     () => stocks.find((stock) => stock.symbol.toLowerCase() === (symbol ?? '').toLowerCase()),
@@ -110,19 +122,34 @@ export default function AddTradeModal({
       lastPricedSymbol.current = null;
       return;
     }
-    if (selectedStock && lastPricedSymbol.current !== selectedStock.symbol) {
+    if (selectedStock && lastPricedSymbol.current !== selectedStock.symbol && type !== 'BONUS') {
       lastPricedSymbol.current = selectedStock.symbol;
       reset((values) => ({ ...values, price: selectedStock.ltp }));
     }
-  }, [open, selectedStock, reset]);
+  }, [open, selectedStock, reset, type]);
+
+  // Bonus shares enter free: no offer price is asked for.
+  useEffect(() => {
+    if (type === 'BONUS') {
+      setValue('price', 0);
+    }
+  }, [type, setValue]);
 
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
       const tradeDate = new Date(`${values.tradeDate}T12:00:00`).toISOString();
       return api.post('/portfolio/trades', {
-        ...values,
-        notes: values.notes || null,
+        symbol: values.symbol,
+        type: values.type,
+        quantity: values.quantity,
+        price: values.price,
+        // Omitted fee fields let the backend compute from the rate schedule.
+        brokerage: values.brokerage == null ? null : values.brokerage,
+        sebonFee: null,
+        dpCharge: null,
+        tax: values.tax == null ? null : values.tax,
         tradeDate,
+        notes: values.notes || null,
       });
     },
     onSuccess: () => {
@@ -130,6 +157,7 @@ export default function AddTradeModal({
       void queryClient.invalidateQueries({ queryKey: ['portfolio'] });
       void queryClient.invalidateQueries({ queryKey: ['portfolio-history'] });
       void queryClient.invalidateQueries({ queryKey: ['trades'] });
+      void queryClient.invalidateQueries({ queryKey: ['cgt'] });
       void queryClient.invalidateQueries({ queryKey: ['recommendations'] });
       void queryClient.invalidateQueries({ queryKey: ['opportunities'] });
       onClose();
@@ -137,15 +165,60 @@ export default function AddTradeModal({
     onError: (error) => toast.error(errorMessage(error, 'Could not record the trade')),
   });
 
-  const estimatedTotal = Number(quantity || 0) * Number(price || 0)
-    + Number(brokerage || 0) + Number(tax || 0);
+  // Live charges preview, debounced so typing doesn't spam the API.
+  const [previewInput, setPreviewInput] = useState<string>('');
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPreviewInput(JSON.stringify({
+        symbol,
+        type,
+        quantity,
+        price,
+        brokerage: watch('brokerage') ?? null,
+        tax: watch('tax') ?? null,
+      }));
+    }, 400);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbol, type, quantity, price, watch('brokerage'), watch('tax')]);
+
+  // react-query requires a strictly boolean `enabled`; a falsy-but-not-boolean
+  // value (like the empty symbol string '') throws on render.
+  const previewEnabled = useMemo(() => {
+    if (!open || !previewInput) {
+      return false;
+    }
+    try {
+      const parsed = JSON.parse(previewInput) as {
+        symbol?: string; type?: string; quantity?: number; price?: number;
+      };
+      return Boolean(
+        typeof parsed.symbol === 'string' && parsed.symbol.length > 0
+        && typeof parsed.quantity === 'number' && parsed.quantity >= 1
+        && ((typeof parsed.price === 'number' && parsed.price > 0) || parsed.type === 'BONUS'),
+      );
+    } catch {
+      return false;
+    }
+  }, [open, previewInput]);
+
+  const preview = useQuery<ChargesPreview>({
+    queryKey: ['trade-preview', previewInput],
+    queryFn: async () => (await api.post('/portfolio/trades/preview', JSON.parse(previewInput))).data,
+    enabled: previewEnabled,
+    staleTime: 15_000,
+  });
+
+  const isSell = type === 'SELL';
+  const isBonus = type === 'BONUS';
+  const isOffer = type === 'IPO' || type === 'FPO' || type === 'RIGHT';
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="Record a trade"
-      description="Buys and sells feed the FIFO cost-basis engine."
+      title="Record a transaction"
+      description="Allotments, bonus shares and market trades feed the same cost-basis engine."
     >
       <form onSubmit={handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -165,7 +238,7 @@ export default function AddTradeModal({
               )}
             />
             {errors.symbol && <p className="mt-1 text-xs text-rose-500">{errors.symbol.message}</p>}
-            {selectedStock && (
+            {selectedStock && !isBonus && (
               <p className="mt-1 text-[11px] text-slate-400">
                 LTP {formatPrice(selectedStock.ltp)} · {selectedStock.companyName}
                 {selectedStock.instrumentType && selectedStock.instrumentType !== 'Equity'
@@ -177,10 +250,11 @@ export default function AddTradeModal({
           <div>
             <label className="label" htmlFor="trade-type">Type</label>
             <select id="trade-type" className="input" {...register('type')}>
-              <option value="BUY">Buy</option>
-              <option value="SELL">Sell</option>
+              {TRADE_TYPES.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
             </select>
-            {type === 'SELL' && (
+            {isSell && (
               <p className="mt-1 text-[11px] text-slate-400">
                 Available: {holding?.quantity ?? 0} shares
               </p>
@@ -200,40 +274,53 @@ export default function AddTradeModal({
           </div>
 
           <div>
-            <label className="label" htmlFor="trade-price">Price per share</label>
+            <label className="label" htmlFor="trade-price">
+              {isBonus ? 'Price (bonus = Rs 0)' : isOffer ? 'Offer / subscription price' : 'Price per share'}
+            </label>
             <input
               id="trade-price"
               type="number"
               step="0.01"
-              min={0.01}
-              className="input"
+              min={0}
+              disabled={isBonus}
+              className="input disabled:cursor-not-allowed disabled:opacity-60"
               {...register('price', { valueAsNumber: true })}
             />
             {errors.price && <p className="mt-1 text-xs text-rose-500">{errors.price.message}</p>}
           </div>
 
           <div>
-            <label className="label" htmlFor="trade-brokerage">Brokerage</label>
+            <label className="label" htmlFor="trade-brokerage">
+              Commission override (Rs)
+            </label>
             <input
               id="trade-brokerage"
               type="number"
               step="0.01"
               min={0}
+              placeholder={isBonus || isOffer ? '0' : 'auto'}
               className="input"
               {...register('brokerage', { valueAsNumber: true })}
             />
+            <p className="mt-1 text-[10px] text-slate-400">
+              Leave blank to use your rate schedule.
+            </p>
           </div>
 
           <div>
-            <label className="label" htmlFor="trade-tax">Tax / other fees</label>
+            <label className="label" htmlFor="trade-tax">Tax / TDS override (Rs)</label>
             <input
               id="trade-tax"
               type="number"
               step="0.01"
               min={0}
+              placeholder="auto"
               className="input"
               {...register('tax', { valueAsNumber: true })}
             />
+            <p className="mt-1 text-[10px] text-slate-400">
+              Sells: CGT on the gain. Bonus: TDS the company already deducted.
+            </p>
           </div>
 
           <div>
@@ -244,21 +331,71 @@ export default function AddTradeModal({
 
           <div>
             <label className="label" htmlFor="trade-notes">Notes (optional)</label>
-            <input id="trade-notes" className="input" placeholder="Reason, broker, etc." {...register('notes')} />
+            <input id="trade-notes" className="input" placeholder="e.g. bonus TDS ~5%, broker name" {...register('notes')} />
           </div>
         </div>
 
-        <div className="flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-xs text-slate-500 dark:bg-white/5 dark:text-slate-400">
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
-          <div>
-            <p>Estimated cash value: <span className="font-bold text-slate-700 dark:text-slate-200">{formatNpr(estimatedTotal)}</span></p>
-            <p className="mt-0.5">Fees are included in the cost basis and realized P&L.</p>
+        <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-500 dark:bg-white/5 dark:text-slate-400">
+          <div className="flex items-start gap-2">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
+            <p>{typeHint(type)}</p>
           </div>
+          {preview.data && (
+            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 border-t border-slate-200 pt-2 dark:border-white/10 sm:grid-cols-3">
+              <div>
+                <dt className="text-[10px] uppercase tracking-wide">Amount</dt>
+                <dd className="font-semibold text-slate-700 dark:text-slate-200">{formatNpr(preview.data.amount)}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] uppercase tracking-wide">Commission</dt>
+                <dd className="font-semibold text-slate-700 dark:text-slate-200">{formatNpr(preview.data.brokerage)}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] uppercase tracking-wide">SEBON fee</dt>
+                <dd className="font-semibold text-slate-700 dark:text-slate-200">{formatNpr(preview.data.sebonFee)}</dd>
+              </div>
+              {isSell && (
+                <>
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-wide">DP charge</dt>
+                    <dd className="font-semibold text-slate-700 dark:text-slate-200">{formatNpr(preview.data.dpCharge)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-wide">WAC / share</dt>
+                    <dd className="font-semibold text-slate-700 dark:text-slate-200">
+                      {formatPrice(preview.data.wacPerShare)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-wide">
+                      CGT ({preview.data.cgtRate}% · {preview.data.holdingDays}d)
+                    </dt>
+                    <dd className="font-semibold text-slate-700 dark:text-slate-200">{formatNpr(preview.data.cgt)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-wide">Net proceeds</dt>
+                    <dd className="font-semibold text-slate-700 dark:text-slate-200">{formatNpr(preview.data.netProceeds)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-wide">Net profit after tax</dt>
+                    <dd className="font-semibold text-slate-700 dark:text-slate-200">{formatNpr(preview.data.netProfit)}</dd>
+                  </div>
+                </>
+              )}
+              {!isSell && (
+                <div>
+                  <dt className="text-[10px] uppercase tracking-wide">Total cash out</dt>
+                  <dd className="font-semibold text-slate-700 dark:text-slate-200">{formatNpr(preview.data.totalCost)}</dd>
+                </div>
+              )}
+            </dl>
+          )}
+          {preview.isFetching && <p className="mt-1 text-[10px]">Calculating charges…</p>}
         </div>
 
         <div className="flex justify-end gap-3 pt-1">
           <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button type="submit" loading={mutation.isPending}>Save trade</Button>
+          <Button type="submit" loading={mutation.isPending}>Save transaction</Button>
         </div>
       </form>
     </Modal>

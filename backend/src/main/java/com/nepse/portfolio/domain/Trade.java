@@ -41,6 +41,12 @@ public class Trade {
     @Column(nullable = false)
     private BigDecimal brokerage = BigDecimal.ZERO;
 
+    @Column(name = "sebon_fee", nullable = false)
+    private BigDecimal sebonFee = BigDecimal.ZERO;
+
+    @Column(name = "dp_charge", nullable = false)
+    private BigDecimal dpCharge = BigDecimal.ZERO;
+
     @Column(nullable = false)
     private BigDecimal tax = BigDecimal.ZERO;
 
@@ -54,19 +60,23 @@ public class Trade {
 
 
     public Trade(Long userId, Long stockId, TradeType type, int quantity, BigDecimal price,
-                 BigDecimal brokerage, BigDecimal tax, Instant tradeDate, String notes) {
+                 BigDecimal brokerage, BigDecimal sebonFee, BigDecimal dpCharge, BigDecimal tax,
+                 Instant tradeDate, String notes) {
         this.userId = userId;
         this.stockId = stockId;
         this.type = type;
         this.quantity = quantity;
         this.price = price;
         this.brokerage = brokerage == null ? BigDecimal.ZERO : brokerage;
+        this.sebonFee = sebonFee == null ? BigDecimal.ZERO : sebonFee;
+        this.dpCharge = dpCharge == null ? BigDecimal.ZERO : dpCharge;
         this.tax = tax == null ? BigDecimal.ZERO : tax;
         this.tradeDate = tradeDate;
         this.notes = notes;
     }
 
+    /** Fees that move money out of the transaction (broker + SEBON + DP). CGT is kept separate. */
     public BigDecimal getFees() {
-        return brokerage.add(tax);
+        return brokerage.add(sebonFee).add(dpCharge);
     }
 }

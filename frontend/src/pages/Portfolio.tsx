@@ -32,10 +32,93 @@ import Badge from '@/components/ui/Badge';
 import EmptyState from '@/components/ui/EmptyState';
 import { TableSkeleton } from '@/components/ui/Skeletons';
 import AddTradeModal from '@/components/AddTradeModal';
-import type { Holding, Portfolio, Trade } from '@/types';
+import type { CgtReport, Holding, Portfolio, Trade } from '@/types';
 
 type SortKey = 'symbol' | 'quantity' | 'currentValue' | 'unrealizedProfitLoss' | 'unrealizedPercent';
 type Filter = 'all' | 'gain' | 'loss';
+
+/** "Sell everything today" — WAC-basis CGT estimate per the Income Tax Act §95क. */
+function TaxPreviewCard() {
+  const { data, isLoading } = useQuery<CgtReport>({
+    queryKey: ['cgt'],
+    queryFn: async () => (await api.get('/portfolio/cgt')).data,
+    staleTime: 60_000,
+  });
+
+  if (isLoading) {
+    return <div className="mt-6 card p-5"><TableSkeleton rows={2} /></div>;
+  }
+  if (!data || data.lots.length === 0) {
+    return null;
+  }
+
+  return (
+    <Card className="mt-6 p-5">
+      <SectionTitle
+        title="Capital gains tax — if you sold everything today"
+        subtitle="Weighted-average cost basis, your current rate schedule; educational estimate only"
+        action={<CircleDollarSign className="h-4 w-4 text-brand-500" />}
+      />
+      <div className="grid gap-3 sm:grid-cols-3 mb-4">
+        <div className="rounded-xl bg-slate-50 px-4 py-3 dark:bg-white/5">
+          <p className="text-[10px] uppercase tracking-wide text-slate-400">Gain if sold</p>
+          <p className="text-lg font-bold text-slate-800 dark:text-white">{formatNpr(data.totalGainIfSold)}</p>
+        </div>
+        <div className="rounded-xl bg-slate-50 px-4 py-3 dark:bg-white/5">
+          <p className="text-[10px] uppercase tracking-wide text-slate-400">Estimated CGT</p>
+          <p className="text-lg font-bold text-amber-600 dark:text-amber-300">{formatNpr(data.totalEstimatedCgt)}</p>
+        </div>
+        <div className="rounded-xl bg-slate-50 px-4 py-3 dark:bg-white/5">
+          <p className="text-[10px] uppercase tracking-wide text-slate-400">Net after tax</p>
+          <p className="text-lg font-bold text-emerald-600 dark:text-emerald-300">{formatNpr(data.totalNetAfterTax)}</p>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-y border-slate-100 bg-slate-50/60 dark:border-white/5 dark:bg-white/[0.02]">
+              <th className="table-th">Symbol</th>
+              <th className="table-th text-right">Qty</th>
+              <th className="table-th text-right">WAC</th>
+              <th className="table-th text-right">Gain if sold</th>
+              <th className="table-th text-right">Slab</th>
+              <th className="table-th text-right">Est. CGT</th>
+              <th className="table-th text-right">Net after tax</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+            {data.lots.map((lot) => (
+              <tr key={lot.stockId} className="transition hover:bg-slate-50/70 dark:hover:bg-white/[0.03]">
+                <td className="table-td">
+                  <Link to={`/stocks/${lot.symbol}`} className="font-bold text-slate-800 hover:text-brand-600 dark:text-white dark:hover:text-brand-300">
+                    {lot.symbol}
+                  </Link>
+                </td>
+                <td className="table-td text-right">{lot.quantity}</td>
+                <td className="table-td text-right">{lot.wacPerShare.toFixed(2)}</td>
+                <td className={cn('table-td text-right font-semibold', pnlClass(lot.gainIfSold))}>
+                  {formatSignedNpr(lot.gainIfSold)}
+                </td>
+                <td className="table-td text-right text-slate-500 dark:text-slate-400">
+                  <Badge variant={lot.slab === 'long' ? 'gain' : 'warn'}>{lot.slab} {lot.cgtRate}%</Badge>
+                  <span className="ml-1 text-[10px] text-slate-400">{lot.holdingDays}d</span>
+                </td>
+                <td className="table-td text-right text-amber-600 dark:text-amber-300">{formatNpr(lot.estimatedCgt)}</td>
+                <td className={cn('table-td text-right font-semibold', pnlClass(lot.netAfterTax))}>
+                  {formatSignedNpr(lot.netAfterTax)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-3 text-[11px] text-slate-400">
+        Bonus shares dilute the average; the oldest holding sets the slab. Confirm with your broker's
+        T1/cost-value statement before filing.
+      </p>
+    </Card>
+  );
+}
 
 export default function PortfolioPage() {
   const queryClient = useQueryClient();
@@ -323,7 +406,9 @@ export default function PortfolioPage() {
                   <tr key={trade.id} className="transition hover:bg-slate-50/70 dark:hover:bg-white/[0.03]">
                     <td className="table-td text-slate-500 dark:text-slate-400">{formatDate(trade.tradeDate)}</td>
                     <td className="table-td">
-                      <Badge variant={trade.type === 'BUY' ? 'brand' : 'warn'}>{trade.type}</Badge>
+                      <Badge variant={trade.type === 'SELL' ? 'warn' : trade.type === 'BONUS' ? 'violet' : 'brand'}>
+                        {trade.type}
+                      </Badge>
                     </td>
                     <td className="table-td">
                       <Link to={`/stocks/${trade.symbol}`} className="font-bold text-slate-800 hover:text-brand-600 dark:text-white dark:hover:text-brand-300">
@@ -353,6 +438,8 @@ export default function PortfolioPage() {
           </div>
         )}
       </Card>
+
+      <TaxPreviewCard />
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand-500/20 bg-brand-500/5 px-5 py-4 text-sm">
         <p className="text-slate-600 dark:text-slate-300">

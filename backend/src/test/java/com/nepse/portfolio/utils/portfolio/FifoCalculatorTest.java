@@ -19,7 +19,8 @@ class FifoCalculatorTest {
     private Trade trade(TradeType type, int quantity, String price, String fees) {
         BigDecimal fee = new BigDecimal(fees);
         return new Trade(1L, 1L, type, quantity, new BigDecimal(price),
-                fee, BigDecimal.ZERO, Instant.parse("2025-01-01T00:00:00Z"), null);
+                fee, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                Instant.parse("2025-01-01T00:00:00Z"), null);
     }
 
     @Test

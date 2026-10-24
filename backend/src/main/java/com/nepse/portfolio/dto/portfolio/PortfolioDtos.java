@@ -71,6 +71,8 @@ public final class PortfolioDtos {
             int quantity,
             BigDecimal price,
             BigDecimal brokerage,
+            BigDecimal sebonFee,
+            BigDecimal dpCharge,
             BigDecimal tax,
             BigDecimal fees,
             BigDecimal total,
@@ -83,11 +85,64 @@ public final class PortfolioDtos {
             @NotBlank String symbol,
             @NotNull TradeType type,
             @Min(1) int quantity,
-            @NotNull @DecimalMin("0.01") BigDecimal price,
+            /** Allotment price; bonus shares book at Rs 0 (may be omitted). */
+            @DecimalMin("0") BigDecimal price,
+            /** Fee snapshots. Null fields mean "compute from the rate schedule";
+             *  a provided value is kept exactly as entered. */
             @DecimalMin("0") BigDecimal brokerage,
+            @DecimalMin("0") BigDecimal sebonFee,
+            @DecimalMin("0") BigDecimal dpCharge,
             @DecimalMin("0") BigDecimal tax,
             Instant tradeDate,
             @Size(max = 500) String notes
+    ) {
+    }
+
+    /** What booking a trade would cost, before it is saved. */
+    public record ChargesPreviewDto(
+            String symbol,
+            String type,
+            int quantity,
+            BigDecimal price,
+            BigDecimal amount,
+            BigDecimal brokerage,
+            BigDecimal sebonFee,
+            BigDecimal dpCharge,
+            BigDecimal cgt,
+            BigDecimal cgtRate,
+            int holdingDays,
+            BigDecimal wacPerShare,
+            BigDecimal totalCost,
+            BigDecimal netProceeds,
+            BigDecimal netProfit
+    ) {
+    }
+
+    /** Per-scrip "if you sold everything today" tax report (WAC basis). */
+    public record CgtLotDto(
+            Long stockId,
+            String symbol,
+            String companyName,
+            int quantity,
+            BigDecimal wacPerShare,
+            BigDecimal invested,
+            BigDecimal ltp,
+            BigDecimal gainIfSold,
+            BigDecimal feesIfSold,
+            BigDecimal cgtRate,
+            BigDecimal estimatedCgt,
+            BigDecimal netAfterTax,
+            Instant earliestLotDate,
+            int holdingDays,
+            String slab
+    ) {
+    }
+
+    public record CgtReportDto(
+            BigDecimal totalGainIfSold,
+            BigDecimal totalEstimatedCgt,
+            BigDecimal totalNetAfterTax,
+            List<CgtLotDto> lots
     ) {
     }
 

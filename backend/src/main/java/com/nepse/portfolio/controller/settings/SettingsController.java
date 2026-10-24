@@ -3,8 +3,10 @@ package com.nepse.portfolio.controller.settings;
 import lombok.RequiredArgsConstructor;
 import com.nepse.portfolio.dto.settings.SettingsDtos;
 import com.nepse.portfolio.service.settings.SettingsService;
+import com.nepse.portfolio.service.portfolio.TradingRatesService;
 
 import com.nepse.portfolio.security.CurrentUser;
+import com.nepse.portfolio.utils.portfolio.TradingRates;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 public class SettingsController {
 
     private final SettingsService settingsService;
+    private final TradingRatesService tradingRatesService;
     private final CurrentUser currentUser;
 
 
@@ -25,5 +28,22 @@ public class SettingsController {
     @PutMapping
     public SettingsDtos.SettingsDto update(@Valid @RequestBody SettingsDtos.UpdateSettingsRequest request) {
         return settingsService.update(currentUser.id(), request);
+    }
+
+    /** The user's own cost/tax schedule (null fields fall back to admin global). */
+    @GetMapping("/trading-rates")
+    public TradingRates tradingRates() {
+        return tradingRatesService.userRates(currentUser.id());
+    }
+
+    /** The schedule actually in force after merging admin global over the defaults. */
+    @GetMapping("/trading-rates/effective")
+    public TradingRates effectiveTradingRates() {
+        return tradingRatesService.effective(currentUser.id());
+    }
+
+    @PutMapping("/trading-rates")
+    public TradingRates updateTradingRates(@RequestBody TradingRates patch) {
+        return tradingRatesService.updateUser(currentUser.id(), patch);
     }
 }

@@ -5,6 +5,8 @@ import com.nepse.portfolio.domain.Trade;
 import com.nepse.portfolio.domain.TradeType;
 import com.nepse.portfolio.repository.TradeRepository;
 import com.nepse.portfolio.utils.portfolio.FifoCalculator;
+import com.nepse.portfolio.utils.portfolio.NepseCostEngine;
+import com.nepse.portfolio.utils.portfolio.TradingRates;
 
 import com.nepse.portfolio.exception.ApiException;
 import com.nepse.portfolio.domain.PriceHistory;
@@ -34,6 +36,7 @@ public class PortfolioServiceImpl implements PortfolioService {
     private final TradeRepository tradeRepository;
     private final StockRepository stockRepository;
     private final PriceHistoryRepository priceHistoryRepository;
+    private final TradingRatesService tradingRatesService;
     private final FifoCalculator fifoCalculator = new FifoCalculator();
 
 
@@ -101,26 +104,242 @@ public class PortfolioServiceImpl implements PortfolioService {
                     + " is no longer listed as active on NEPSE, so new trades are blocked");
         }
 
+        validateRequest(request);
+
+        Instant when = request.tradeDate() == null ? Instant.now() : request.tradeDate();
+        List<Trade> existingForStock =
+                tradeRepository.findByUserIdAndStockIdOrderByTradeDateAscIdAsc(userId, stock.getId());
+
         if (request.type() == TradeType.SELL) {
-            int available = holdingsQuantity(userId, stock.getId());
+            NepseCostEngine.WacLedger ledger = ledgerFor(existingForStock, tradingRatesService.effective(userId));
+            int available = ledger.openQuantity();
             if (request.quantity() > available) {
                 throw ApiException.badRequest("You only hold " + available + " shares of " + stock.getSymbol());
             }
         }
 
-        Instant when = request.tradeDate() == null ? Instant.now() : request.tradeDate();
+        Quote quote = quote(userId, stock, request, when, existingForStock);
+
         Trade trade = new Trade(
                 userId,
                 stock.getId(),
                 request.type(),
                 request.quantity(),
-                request.price(),
-                request.brokerage(),
-                request.tax(),
+                request.price() == null ? BigDecimal.ZERO : request.price(),
+                quote.brokerage(),
+                quote.sebonFee(),
+                quote.dpCharge(),
+                quote.cgt(),
                 when,
                 request.notes()
         );
         return toDto(tradeRepository.save(trade), stock);
+    }
+
+    /** Same math as {@link #addTrade}, nothing saved — the trade form shows this. */
+    @Transactional(readOnly = true)
+    public ChargesPreviewDto previewTrade(Long userId, TradeRequest request) {
+        Stock stock = stockRepository.findBySymbolIgnoreCase(request.symbol().trim())
+                .orElseThrow(() -> ApiException.notFound("Stock " + request.symbol() + " not found"));
+        validateRequest(request);
+        Instant when = request.tradeDate() == null ? Instant.now() : request.tradeDate();
+        List<Trade> existingForStock =
+                tradeRepository.findByUserIdAndStockIdOrderByTradeDateAscIdAsc(userId, stock.getId());
+        Quote quote = quote(userId, stock, request, when, existingForStock);
+
+        return new ChargesPreviewDto(
+                stock.getSymbol(),
+                request.type().name(),
+                request.quantity(),
+                request.price() == null ? BigDecimal.ZERO : request.price(),
+                quote.amount(),
+                money(quote.brokerage()),
+                money(quote.sebonFee()),
+                money(quote.dpCharge()),
+                money(quote.cgt()),
+                quote.cgtRate(),
+                quote.holdingDays(),
+                money(quote.wacPerShare()),
+                money(quote.totalCost()),
+                money(quote.netProceeds()),
+                money(quote.netProfit())
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public CgtReportDto cgtReport(Long userId) {
+        List<Trade> trades = tradeRepository.findByUserIdOrderByTradeDateAscIdAsc(userId);
+        Map<Long, List<Trade>> byStock = trades.stream().collect(Collectors.groupingBy(Trade::getStockId));
+        Map<Long, Stock> stocks = stockMap(byStock.keySet().stream().toList());
+        TradingRates rates = tradingRatesService.effective(userId);
+
+        BigDecimal totalGain = BigDecimal.ZERO;
+        BigDecimal totalCgt = BigDecimal.ZERO;
+        BigDecimal totalNet = BigDecimal.ZERO;
+        List<CgtLotDto> lots = new ArrayList<>();
+
+        for (Map.Entry<Long, List<Trade>> entry : byStock.entrySet()) {
+            List<Trade> stockTrades = entry.getValue();
+            NepseCostEngine.WacLedger ledger = ledgerFor(stockTrades, rates);
+            int quantity = ledger.openQuantity();
+            Stock stock = stocks.get(entry.getKey());
+            if (quantity <= 0 || stock == null) {
+                continue;
+            }
+            BigDecimal wac = ledger.wacPerShare();
+            BigDecimal ltp = stock.getLtp();
+            BigDecimal amount = ltp.multiply(BigDecimal.valueOf(quantity));
+            // Selling everything today: sell-side fees at current rates, DP once.
+            BigDecimal fees = NepseCostEngine.commission(amount, rates)
+                    .add(NepseCostEngine.sebonFee(amount, rates))
+                    .add(rates.dpChargePerScripPerDay() == null ? BigDecimal.ZERO : rates.dpChargePerScripPerDay());
+            BigDecimal invested = wac.multiply(BigDecimal.valueOf(quantity));
+            BigDecimal gain = amount.subtract(fees).subtract(invested);
+            int holding = ledger.earliestLotDate() == null ? 0
+                    : NepseCostEngine.holdingDays(ledger.earliestLotDate(), Instant.now(), MARKET_ZONE);
+            BigDecimal rate = NepseCostEngine.cgtRate(holding, rates);
+            BigDecimal cgt = NepseCostEngine.cgtTax(gain, rate);
+            BigDecimal net = gain.subtract(cgt);
+
+            totalGain = totalGain.add(gain);
+            totalCgt = totalCgt.add(cgt);
+            totalNet = totalNet.add(net);
+
+            lots.add(new CgtLotDto(
+                    stock.getId(),
+                    stock.getSymbol(),
+                    stock.getCompanyName(),
+                    quantity,
+                    money(wac),
+                    money(invested),
+                    ltp,
+                    money(gain),
+                    money(fees),
+                    rate,
+                    money(cgt),
+                    money(net),
+                    ledger.earliestLotDate(),
+                    holding,
+                    holding <= NepseCostEngine.CGT_SHORT_MAX_DAYS ? "short" : "long"
+            ));
+        }
+
+        return new CgtReportDto(money(totalGain), money(totalCgt), money(totalNet), lots);
+    }
+
+    /** Fee/tax snapshot for one pending trade against the user's rate schedule. */
+    private record Quote(
+            BigDecimal amount,
+            BigDecimal brokerage,
+            BigDecimal sebonFee,
+            BigDecimal dpCharge,
+            BigDecimal cgt,
+            BigDecimal cgtRate,
+            int holdingDays,
+            BigDecimal wacPerShare,
+            BigDecimal totalCost,
+            BigDecimal netProceeds,
+            BigDecimal netProfit
+    ) {
+    }
+
+    private void validateRequest(TradeRequest request) {
+        BigDecimal price = request.price();
+        switch (request.type()) {
+            case BONUS -> {
+                if (price != null && price.signum() > 0) {
+                    throw ApiException.badRequest(
+                            "Bonus shares are free — leave the price at zero and note any TDS in the notes field");
+                }
+            }
+            case IPO, FPO, RIGHT -> {
+                if (price == null || price.signum() <= 0) {
+                    throw ApiException.badRequest(
+                            request.type() + " allotments need the offer/subscription price");
+                }
+            }
+            case BUY, SELL, AUCTION -> {
+                if (price == null || price.signum() <= 0) {
+                    throw ApiException.badRequest(request.type() + " trades need a price");
+                }
+            }
+        }
+    }
+
+    private Quote quote(Long userId, Stock stock, TradeRequest request, Instant when,
+                        List<Trade> existingForStock) {
+        TradingRates rates = tradingRatesService.effective(userId);
+        TradeType type = request.type();
+        BigDecimal price = request.price() == null ? BigDecimal.ZERO : request.price();
+        BigDecimal amount = price.multiply(BigDecimal.valueOf(request.quantity()));
+
+        BigDecimal brokerage;
+        BigDecimal sebon;
+        BigDecimal dp = BigDecimal.ZERO;
+        BigDecimal cgt = BigDecimal.ZERO;
+        BigDecimal cgtRate = BigDecimal.ZERO;
+        int holdingDays = 0;
+        BigDecimal wac = BigDecimal.ZERO;
+        BigDecimal totalCost = amount.add(cgt);
+        BigDecimal netProceeds = BigDecimal.ZERO;
+        BigDecimal netProfit = BigDecimal.ZERO;
+
+        if (type == TradeType.SELL) {
+            brokerage = request.brokerage() == null
+                    ? NepseCostEngine.commission(amount, rates) : request.brokerage();
+            sebon = request.sebonFee() == null
+                    ? NepseCostEngine.sebonFee(amount, rates) : request.sebonFee();
+            dp = request.dpCharge() == null ? dpChargeFor(when, existingForStock, rates) : request.dpCharge();
+
+            NepseCostEngine.WacLedger ledger = ledgerFor(existingForStock, rates);
+            Trade pending = new Trade(userId, stock.getId(), type, request.quantity(), price,
+                    brokerage, sebon, dp, BigDecimal.ZERO, when, null);
+            NepseCostEngine.SellCosting costing = ledger.addSell(pending, rates, MARKET_ZONE);
+
+            cgt = request.tax() == null ? costing.cgt() : request.tax();
+            cgtRate = costing.cgtRate();
+            holdingDays = costing.holdingDays();
+            wac = costing.wacPerShare();
+            netProceeds = amount.subtract(brokerage).subtract(sebon).subtract(dp);
+            netProfit = netProceeds.subtract(cgt)
+                    .subtract(costing.wacPerShare().multiply(BigDecimal.valueOf(request.quantity())));
+            totalCost = netProfit;
+        } else if (NepseCostEngine.chargesEntryFees(type)) {
+            NepseCostEngine.BuyCosting costing = NepseCostEngine.costBuy(type, price, request.quantity(), rates);
+            brokerage = request.brokerage() == null ? costing.commission() : request.brokerage();
+            sebon = request.sebonFee() == null ? costing.sebonFee() : request.sebonFee();
+            totalCost = amount.add(brokerage).add(sebon);
+        } else {
+            // IPO/FPO/RIGHT/BONUS allotments legitimately carry no fees.
+            brokerage = request.brokerage() == null ? BigDecimal.ZERO : request.brokerage();
+            sebon = request.sebonFee() == null ? BigDecimal.ZERO : request.sebonFee();
+            totalCost = amount;
+        }
+
+        return new Quote(amount, brokerage, sebon, dp, cgt, cgtRate, holdingDays,
+                wac, totalCost, netProceeds, netProfit);
+    }
+
+    /** The DP charge hits once per scrip per day, no matter how many sells. */
+    private BigDecimal dpChargeFor(Instant when, List<Trade> existingForStock, TradingRates rates) {
+        BigDecimal rate = rates.dpChargePerScripPerDay() == null ? BigDecimal.ZERO : rates.dpChargePerScripPerDay();
+        LocalDate day = LocalDate.ofInstant(when, MARKET_ZONE);
+        boolean soldSameDay = existingForStock.stream()
+                .filter(t -> t.getType() == TradeType.SELL)
+                .anyMatch(t -> LocalDate.ofInstant(t.getTradeDate(), MARKET_ZONE).equals(day));
+        return soldSameDay ? BigDecimal.ZERO : rate;
+    }
+
+    private NepseCostEngine.WacLedger ledgerFor(List<Trade> trades, TradingRates rates) {
+        NepseCostEngine.WacLedger ledger = new NepseCostEngine.WacLedger();
+        for (Trade trade : trades) {
+            if (NepseCostEngine.increasesQuantity(trade.getType())) {
+                ledger.addBuy(trade, rates);
+            } else {
+                ledger.addSell(trade, rates, MARKET_ZONE);
+            }
+        }
+        return ledger;
     }
 
     @Transactional
@@ -285,7 +504,8 @@ public class PortfolioServiceImpl implements PortfolioService {
         for (List<Trade> stockTrades : byStock.values()) {
             int available = 0;
             for (Trade trade : stockTrades) {
-                available += trade.getType() == TradeType.BUY ? trade.getQuantity() : -trade.getQuantity();
+                available += NepseCostEngine.increasesQuantity(trade.getType())
+                        ? trade.getQuantity() : -trade.getQuantity();
                 if (available < 0) {
                     throw ApiException.badRequest("This change would leave a sell without enough bought shares");
                 }
@@ -300,7 +520,12 @@ public class PortfolioServiceImpl implements PortfolioService {
 
     private TradeDto toDto(Trade trade, Stock stock) {
         BigDecimal fees = trade.getFees();
-        BigDecimal total = trade.getPrice().multiply(BigDecimal.valueOf(trade.getQuantity())).add(fees);
+        BigDecimal amount = trade.getPrice().multiply(BigDecimal.valueOf(trade.getQuantity()));
+        boolean sell = trade.getType() == TradeType.SELL;
+        // Buys cost cash; sells return it. Show the signed cash movement either way.
+        BigDecimal total = sell
+                ? amount.subtract(fees).subtract(trade.getTax())
+                : amount.add(fees);
         return new TradeDto(
                 trade.getId(),
                 trade.getStockId(),
@@ -310,6 +535,8 @@ public class PortfolioServiceImpl implements PortfolioService {
                 trade.getQuantity(),
                 trade.getPrice(),
                 trade.getBrokerage(),
+                trade.getSebonFee(),
+                trade.getDpCharge(),
                 trade.getTax(),
                 fees,
                 money(total),
