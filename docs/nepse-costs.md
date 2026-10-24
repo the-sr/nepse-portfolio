@@ -94,9 +94,12 @@ Verified defaults (also seeded into the DB by migration V3):
 }
 ```
 
-When SEBON/budget law changes again: admins edit the global row, users edit
-their own — no code change needed, and historic trades keep the amounts they
-were booked with (fees are snapshotted on the trade row at creation).
+Users edit their own schedule from **Portfolio → Charges & tax** (the button
+next to "Add trade"); the modal is pre-filled with the effective schedule and
+has a "Reset to defaults" action. When SEBON/budget law changes again, admins
+edit the global row and users can override their own — no code change needed,
+and historic trades keep the amounts they were booked with (fees are
+snapshotted on the trade row at creation).
 
 > Rates in force at the time of a trade are the ones a broker deducts, so the
 > engine resolves the config **at the trade date** only for new entries; it

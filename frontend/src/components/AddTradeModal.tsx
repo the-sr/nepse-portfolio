@@ -219,8 +219,9 @@ export default function AddTradeModal({
       onClose={onClose}
       title="Record a transaction"
       description="Allotments, bonus shares and market trades feed the same cost-basis engine."
+      size="lg"
     >
-      <form onSubmit={handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
+      <form onSubmit={handleSubmit((values) => mutation.mutate(values))} className="max-h-[70vh] space-y-4 overflow-y-auto overflow-x-hidden pr-1">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="label" htmlFor="trade-symbol">Symbol</label>

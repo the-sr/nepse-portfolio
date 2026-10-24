@@ -20,9 +20,7 @@ public final class SettingsDtos {
             BigDecimal lossThresholdAggressive,
             BigDecimal baseBuyAmount,
             BigDecimal maxPositionPercent,
-            BigDecimal maxCapitalPerStock,
-            BigDecimal cgtShortRate,
-            BigDecimal cgtLongRate
+            BigDecimal maxCapitalPerStock
     ) {
     }
 
@@ -34,9 +32,7 @@ public final class SettingsDtos {
             @DecimalMin("1.5") @DecimalMax("99") BigDecimal lossThresholdAggressive,
             @DecimalMin("100") BigDecimal baseBuyAmount,
             @DecimalMin("1") @DecimalMax("100") BigDecimal maxPositionPercent,
-            @DecimalMin("100") BigDecimal maxCapitalPerStock,
-            @DecimalMin("0") @DecimalMax("50") BigDecimal cgtShortRate,
-            @DecimalMin("0") @DecimalMax("50") BigDecimal cgtLongRate
+            @DecimalMin("100") BigDecimal maxCapitalPerStock
     ) {
     }
 }

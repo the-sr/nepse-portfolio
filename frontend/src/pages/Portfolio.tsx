@@ -9,6 +9,7 @@ import {
   CircleDollarSign,
   Plus,
   Search,
+  SlidersHorizontal,
   Trash2,
   TrendingDown,
   TrendingUp,
@@ -32,6 +33,7 @@ import Badge from '@/components/ui/Badge';
 import EmptyState from '@/components/ui/EmptyState';
 import { TableSkeleton } from '@/components/ui/Skeletons';
 import AddTradeModal from '@/components/AddTradeModal';
+import PortfolioSettingsModal from '@/components/PortfolioSettingsModal';
 import type { CgtReport, Holding, Portfolio, Trade } from '@/types';
 
 type SortKey = 'symbol' | 'quantity' | 'currentValue' | 'unrealizedProfitLoss' | 'unrealizedPercent';
@@ -123,6 +125,7 @@ function TaxPreviewCard() {
 export default function PortfolioPage() {
   const queryClient = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [presetSymbol, setPresetSymbol] = useState<string | undefined>(undefined);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
@@ -197,9 +200,14 @@ export default function PortfolioPage() {
         title="Portfolio"
         subtitle="Every holding marked to the latest NEPSE price, with FIFO cost basis."
         actions={(
-          <Button onClick={() => { setPresetSymbol(undefined); setModalOpen(true); }}>
-            <Plus className="h-4 w-4" /> Add trade
-          </Button>
+          <>
+            <Button variant="ghost" onClick={() => setSettingsOpen(true)}>
+              <SlidersHorizontal className="h-4 w-4" /> Charges &amp; tax
+            </Button>
+            <Button onClick={() => { setPresetSymbol(undefined); setModalOpen(true); }}>
+              <Plus className="h-4 w-4" /> Add trade
+            </Button>
+          </>
         )}
       />
 
@@ -456,6 +464,7 @@ export default function PortfolioPage() {
         holdings={holdings}
         defaultSymbol={presetSymbol}
       />
+      <PortfolioSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

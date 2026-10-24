@@ -10,8 +10,9 @@ import com.nepse.portfolio.domain.Trade;
 import com.nepse.portfolio.repository.TradeRepository;
 import com.nepse.portfolio.dto.report.ReportDtos.RealizedGainRow;
 import com.nepse.portfolio.dto.report.ReportDtos.RealizedGainsReport;
-import com.nepse.portfolio.service.settings.SettingsService;
-import com.nepse.portfolio.domain.UserSettings;
+import com.nepse.portfolio.service.portfolio.TradingRatesService;
+import com.nepse.portfolio.utils.portfolio.NepseCostEngine;
+import com.nepse.portfolio.utils.portfolio.TradingRates;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,7 +37,7 @@ public class ReportServiceImpl implements ReportService {
 
     private final TradeRepository tradeRepository;
     private final StockRepository stockRepository;
-    private final SettingsService settingsService;
+    private final TradingRatesService tradingRatesService;
     private final FifoCalculator fifoCalculator = new FifoCalculator();
 
 
@@ -50,7 +51,7 @@ public class ReportServiceImpl implements ReportService {
             end = swap;
         }
 
-        UserSettings settings = settingsService.loadOrCreate(userId);
+        TradingRates rates = tradingRatesService.effective(userId);
         List<Trade> trades = tradeRepository.findByUserIdOrderByTradeDateAscIdAsc(userId);
         Map<Long, Stock> stocks = stockRepository.findAllById(
                         trades.stream().map(Trade::getStockId).distinct().toList())
@@ -75,7 +76,7 @@ public class ReportServiceImpl implements ReportService {
                 BigDecimal costBasis = sale.costPerShare().multiply(quantity);
                 BigDecimal proceeds = sale.sellPricePerShare().multiply(quantity);
                 BigDecimal profit = sale.profitLoss();
-                BigDecimal rate = holdingDays > 365 ? settings.getCgtLongRate() : settings.getCgtShortRate();
+                BigDecimal rate = NepseCostEngine.cgtRate((int) holdingDays, rates);
                 BigDecimal tax = profit.signum() > 0
                         ? profit.multiply(rate).divide(HUNDRED, 2, RoundingMode.HALF_UP)
                         : BigDecimal.ZERO;

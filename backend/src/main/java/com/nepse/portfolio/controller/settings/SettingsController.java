@@ -42,6 +42,12 @@ public class SettingsController {
         return tradingRatesService.effective(currentUser.id());
     }
 
+    /** Verified default schedule (no user/admin overrides). */
+    @GetMapping("/trading-rates/defaults")
+    public TradingRates defaults() {
+        return TradingRates.DEFAULT;
+    }
+
     @PutMapping("/trading-rates")
     public TradingRates updateTradingRates(@RequestBody TradingRates patch) {
         return tradingRatesService.updateUser(currentUser.id(), patch);

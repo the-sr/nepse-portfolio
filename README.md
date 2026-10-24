@@ -295,7 +295,7 @@ All routes below are under `/api`; everything except auth, public market reads a
 | Analysis | `GET /analysis/recommendations`, `GET /analysis/stocks/{symbol}`, `GET /analysis/opportunities`, `POST /analysis/average-simulation` |
 | Alerts | `GET/POST /alerts`, `PUT/DELETE /alerts/{id}`, `GET /alerts/events` |
 | Reports | `GET /reports/realized-gains?from=&to=&format=csv` |
-| Settings | `GET/PUT /settings` |
+| Settings | `GET/PUT /settings`, `GET /settings/trading-rates`, `GET /settings/trading-rates/effective`, `GET /settings/trading-rates/defaults`, `PUT /settings/trading-rates` |
 | Contact | `POST /contact` |
 | Streams | `GET /market/stream`, `GET /alerts/stream?access_token=…` (SSE) |
 | Admin | `GET /admin/market/status`, `POST /admin/market/universe`, `POST /admin/market/sync`, `POST /admin/market/backfill?days=260`, `GET /admin/ml/status` |

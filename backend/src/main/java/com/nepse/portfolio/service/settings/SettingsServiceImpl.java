@@ -48,12 +48,6 @@ public class SettingsServiceImpl implements SettingsService {
         if (request.maxCapitalPerStock() != null) {
             settings.setMaxCapitalPerStock(request.maxCapitalPerStock());
         }
-        if (request.cgtShortRate() != null) {
-            settings.setCgtShortRate(request.cgtShortRate());
-        }
-        if (request.cgtLongRate() != null) {
-            settings.setCgtLongRate(request.cgtLongRate());
-        }
         settings.touch();
         return toDto(settingsRepository.save(settings));
     }
@@ -77,9 +71,7 @@ public class SettingsServiceImpl implements SettingsService {
                 s.getLossThresholdAggressive(),
                 s.getBaseBuyAmount(),
                 s.getMaxPositionPercent(),
-                s.getMaxCapitalPerStock(),
-                s.getCgtShortRate(),
-                s.getCgtLongRate()
+                s.getMaxCapitalPerStock()
         );
     }
 }

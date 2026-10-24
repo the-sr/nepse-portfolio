@@ -297,8 +297,6 @@ export interface Settings {
   baseBuyAmount: number;
   maxPositionPercent: number;
   maxCapitalPerStock: number;
-  cgtShortRate: number;
-  cgtLongRate: number;
 }
 
 export interface RealizedGainRow {
