@@ -1,6 +1,6 @@
 package com.nepse.portfolio.service.market;
 
-import com.nepse.portfolio.domain.Stock;
+import com.nepse.portfolio.model.Stock;
 import com.nepse.portfolio.utils.scraper.ScrapedQuote;
 import org.junit.jupiter.api.Test;
 

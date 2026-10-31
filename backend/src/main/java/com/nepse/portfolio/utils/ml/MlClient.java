@@ -2,7 +2,6 @@ package com.nepse.portfolio.utils.ml;
 
 
 import lombok.extern.slf4j.Slf4j;
-import com.nepse.portfolio.dto.analysis.Indicators;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;

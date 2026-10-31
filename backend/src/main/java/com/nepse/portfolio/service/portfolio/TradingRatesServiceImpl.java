@@ -1,8 +1,8 @@
 package com.nepse.portfolio.service.portfolio;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nepse.portfolio.domain.AppSetting;
-import com.nepse.portfolio.domain.UserSettings;
+import com.nepse.portfolio.model.AppSetting;
+import com.nepse.portfolio.model.UserSettings;
 import com.nepse.portfolio.exception.ApiException;
 import com.nepse.portfolio.repository.AppSettingRepository;
 import com.nepse.portfolio.repository.UserRepository;
@@ -12,8 +12,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.Instant;
 
 /**
  * The schedule lives in two JSON documents — one admin-global row in

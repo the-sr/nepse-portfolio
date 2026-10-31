@@ -1,12 +1,12 @@
 package com.nepse.portfolio.service.market;
 
 import lombok.RequiredArgsConstructor;
-import com.nepse.portfolio.domain.Stock;
+import com.nepse.portfolio.model.Stock;
 import com.nepse.portfolio.repository.PriceHistoryRepository;
 import com.nepse.portfolio.repository.StockRepository;
 
 import com.nepse.portfolio.exception.ApiException;
-import com.nepse.portfolio.dto.market.MarketDtos.*;
+import com.nepse.portfolio.dto.MarketDtos.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

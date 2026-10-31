@@ -1,7 +1,7 @@
 package com.nepse.portfolio.service.analysis;
 
-import com.nepse.portfolio.domain.PriceHistory;
-import com.nepse.portfolio.dto.analysis.Indicators;
+import com.nepse.portfolio.model.PriceHistory;
+import com.nepse.portfolio.dto.Indicators;
 
 import java.util.List;
 

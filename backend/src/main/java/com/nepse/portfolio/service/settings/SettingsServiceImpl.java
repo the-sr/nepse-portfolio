@@ -1,13 +1,13 @@
 package com.nepse.portfolio.service.settings;
 
 import lombok.RequiredArgsConstructor;
-import com.nepse.portfolio.domain.UserSettings;
+import com.nepse.portfolio.model.UserSettings;
 import com.nepse.portfolio.repository.UserRepository;
 import com.nepse.portfolio.repository.UserSettingsRepository;
 
 import com.nepse.portfolio.exception.ApiException;
-import com.nepse.portfolio.dto.settings.SettingsDtos.SettingsDto;
-import com.nepse.portfolio.dto.settings.SettingsDtos.UpdateSettingsRequest;
+import com.nepse.portfolio.dto.SettingsDtos.SettingsDto;
+import com.nepse.portfolio.dto.SettingsDtos.UpdateSettingsRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

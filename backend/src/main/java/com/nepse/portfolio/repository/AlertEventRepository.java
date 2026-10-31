@@ -1,6 +1,6 @@
 package com.nepse.portfolio.repository;
 
-import com.nepse.portfolio.domain.AlertEvent;
+import com.nepse.portfolio.model.AlertEvent;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 

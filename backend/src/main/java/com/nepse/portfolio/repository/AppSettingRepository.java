@@ -1,6 +1,6 @@
 package com.nepse.portfolio.repository;
 
-import com.nepse.portfolio.domain.AppSetting;
+import com.nepse.portfolio.model.AppSetting;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

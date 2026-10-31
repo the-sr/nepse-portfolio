@@ -2,15 +2,15 @@ package com.nepse.portfolio.service.analysis;
 
 import lombok.RequiredArgsConstructor;
 
-import com.nepse.portfolio.dto.analysis.AnalysisDtos.AverageSimulationRequest;
-import com.nepse.portfolio.dto.analysis.AnalysisDtos.AverageSimulationResponse;
-import com.nepse.portfolio.dto.analysis.AnalysisDtos.DcaOpportunityDto;
+import com.nepse.portfolio.dto.AnalysisDtos.AverageSimulationRequest;
+import com.nepse.portfolio.dto.AnalysisDtos.AverageSimulationResponse;
+import com.nepse.portfolio.dto.AnalysisDtos.DcaOpportunityDto;
 import com.nepse.portfolio.exception.ApiException;
-import com.nepse.portfolio.dto.portfolio.PortfolioDtos.HoldingDto;
-import com.nepse.portfolio.dto.portfolio.PortfolioDtos.PortfolioDto;
+import com.nepse.portfolio.dto.PortfolioDtos.HoldingDto;
+import com.nepse.portfolio.dto.PortfolioDtos.PortfolioDto;
 import com.nepse.portfolio.service.portfolio.PortfolioService;
 import com.nepse.portfolio.service.settings.SettingsService;
-import com.nepse.portfolio.domain.UserSettings;
+import com.nepse.portfolio.model.UserSettings;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

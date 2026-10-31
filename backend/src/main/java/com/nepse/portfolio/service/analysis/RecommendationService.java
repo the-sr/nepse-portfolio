@@ -1,9 +1,9 @@
 package com.nepse.portfolio.service.analysis;
 
-import com.nepse.portfolio.domain.Stock;
-import com.nepse.portfolio.dto.analysis.AnalysisDtos.RecommendationDto;
-import com.nepse.portfolio.dto.analysis.AnalysisDtos.StockAnalysisDto;
-import com.nepse.portfolio.dto.analysis.Indicators;
+import com.nepse.portfolio.model.Stock;
+import com.nepse.portfolio.dto.AnalysisDtos.RecommendationDto;
+import com.nepse.portfolio.dto.AnalysisDtos.StockAnalysisDto;
+import com.nepse.portfolio.dto.Indicators;
 
 import java.util.List;
 

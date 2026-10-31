@@ -1,8 +1,7 @@
 package com.nepse.portfolio.utils.portfolio;
 
-import com.nepse.portfolio.domain.Trade;
-import com.nepse.portfolio.domain.TradeType;
-import com.nepse.portfolio.utils.portfolio.FifoCalculator;
+import com.nepse.portfolio.model.Trade;
+import com.nepse.portfolio.enums.TradeType;
 
 import org.junit.jupiter.api.Test;
 

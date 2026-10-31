@@ -1,11 +1,10 @@
 package com.nepse.portfolio.controller.market;
 
 import lombok.RequiredArgsConstructor;
-import com.nepse.portfolio.dto.market.MarketDtos;
 import com.nepse.portfolio.service.market.MarketService;
 import com.nepse.portfolio.service.market.ScraperService;
 
-import com.nepse.portfolio.dto.market.MarketDtos.*;
+import com.nepse.portfolio.dto.MarketDtos.*;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;

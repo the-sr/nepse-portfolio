@@ -1,6 +1,6 @@
 package com.nepse.portfolio.service.report;
 
-import com.nepse.portfolio.dto.report.ReportDtos.RealizedGainsReport;
+import com.nepse.portfolio.dto.ReportDtos.RealizedGainsReport;
 
 import java.time.LocalDate;
 

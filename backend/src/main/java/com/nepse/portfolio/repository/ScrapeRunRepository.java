@@ -1,6 +1,6 @@
 package com.nepse.portfolio.repository;
 
-import com.nepse.portfolio.domain.ScrapeRun;
+import com.nepse.portfolio.model.ScrapeRun;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 

@@ -1,8 +1,8 @@
 package com.nepse.portfolio.service.settings;
 
-import com.nepse.portfolio.domain.UserSettings;
-import com.nepse.portfolio.dto.settings.SettingsDtos.SettingsDto;
-import com.nepse.portfolio.dto.settings.SettingsDtos.UpdateSettingsRequest;
+import com.nepse.portfolio.model.UserSettings;
+import com.nepse.portfolio.dto.SettingsDtos.SettingsDto;
+import com.nepse.portfolio.dto.SettingsDtos.UpdateSettingsRequest;
 
 public interface SettingsService {
     SettingsDto get(Long userId);

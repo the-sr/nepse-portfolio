@@ -1,10 +1,10 @@
 package com.nepse.portfolio.service.market;
 
-import com.nepse.portfolio.domain.Stock;
-import com.nepse.portfolio.dto.market.MarketDtos.MoversDto;
-import com.nepse.portfolio.dto.market.MarketDtos.SectorPerformanceDto;
-import com.nepse.portfolio.dto.market.MarketDtos.StockDetailDto;
-import com.nepse.portfolio.dto.market.MarketDtos.StockDto;
+import com.nepse.portfolio.model.Stock;
+import com.nepse.portfolio.dto.MarketDtos.MoversDto;
+import com.nepse.portfolio.dto.MarketDtos.SectorPerformanceDto;
+import com.nepse.portfolio.dto.MarketDtos.StockDetailDto;
+import com.nepse.portfolio.dto.MarketDtos.StockDto;
 
 import java.util.List;
 

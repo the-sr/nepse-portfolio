@@ -1,6 +1,6 @@
 package com.nepse.portfolio.repository;
 
-import com.nepse.portfolio.domain.User;
+import com.nepse.portfolio.model.User;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 

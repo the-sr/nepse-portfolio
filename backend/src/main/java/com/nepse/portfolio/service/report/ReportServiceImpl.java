@@ -1,15 +1,14 @@
 package com.nepse.portfolio.service.report;
 
 import lombok.RequiredArgsConstructor;
-import com.nepse.portfolio.service.report.ReportService;
 
-import com.nepse.portfolio.domain.Stock;
+import com.nepse.portfolio.model.Stock;
 import com.nepse.portfolio.repository.StockRepository;
 import com.nepse.portfolio.utils.portfolio.FifoCalculator;
-import com.nepse.portfolio.domain.Trade;
+import com.nepse.portfolio.model.Trade;
 import com.nepse.portfolio.repository.TradeRepository;
-import com.nepse.portfolio.dto.report.ReportDtos.RealizedGainRow;
-import com.nepse.portfolio.dto.report.ReportDtos.RealizedGainsReport;
+import com.nepse.portfolio.dto.ReportDtos.RealizedGainRow;
+import com.nepse.portfolio.dto.ReportDtos.RealizedGainsReport;
 import com.nepse.portfolio.service.portfolio.TradingRatesService;
 import com.nepse.portfolio.utils.portfolio.NepseCostEngine;
 import com.nepse.portfolio.utils.portfolio.TradingRates;

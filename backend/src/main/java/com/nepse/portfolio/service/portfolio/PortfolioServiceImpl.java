@@ -1,19 +1,19 @@
 package com.nepse.portfolio.service.portfolio;
 
 import lombok.RequiredArgsConstructor;
-import com.nepse.portfolio.domain.Trade;
-import com.nepse.portfolio.domain.TradeType;
+import com.nepse.portfolio.model.Trade;
+import com.nepse.portfolio.enums.TradeType;
 import com.nepse.portfolio.repository.TradeRepository;
 import com.nepse.portfolio.utils.portfolio.FifoCalculator;
 import com.nepse.portfolio.utils.portfolio.NepseCostEngine;
 import com.nepse.portfolio.utils.portfolio.TradingRates;
 
 import com.nepse.portfolio.exception.ApiException;
-import com.nepse.portfolio.domain.PriceHistory;
+import com.nepse.portfolio.model.PriceHistory;
 import com.nepse.portfolio.repository.PriceHistoryRepository;
-import com.nepse.portfolio.domain.Stock;
+import com.nepse.portfolio.model.Stock;
 import com.nepse.portfolio.repository.StockRepository;
-import com.nepse.portfolio.dto.portfolio.PortfolioDtos.*;
+import com.nepse.portfolio.dto.PortfolioDtos.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

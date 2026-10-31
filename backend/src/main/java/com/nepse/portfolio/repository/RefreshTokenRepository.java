@@ -1,6 +1,6 @@
 package com.nepse.portfolio.repository;
 
-import com.nepse.portfolio.domain.RefreshToken;
+import com.nepse.portfolio.model.RefreshToken;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 

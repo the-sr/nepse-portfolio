@@ -1,18 +1,18 @@
 package com.nepse.portfolio.service.alert;
 
 import lombok.RequiredArgsConstructor;
-import com.nepse.portfolio.domain.Alert;
-import com.nepse.portfolio.domain.AlertEvent;
-import com.nepse.portfolio.domain.AlertType;
+import com.nepse.portfolio.model.Alert;
+import com.nepse.portfolio.model.AlertEvent;
+import com.nepse.portfolio.enums.AlertType;
 import com.nepse.portfolio.repository.AlertEventRepository;
 import com.nepse.portfolio.repository.AlertRepository;
 
-import com.nepse.portfolio.dto.alert.AlertDtos.AlertDto;
-import com.nepse.portfolio.dto.alert.AlertDtos.AlertEventDto;
-import com.nepse.portfolio.dto.alert.AlertDtos.CreateAlertRequest;
-import com.nepse.portfolio.dto.alert.AlertDtos.UpdateAlertRequest;
+import com.nepse.portfolio.dto.AlertDtos.AlertDto;
+import com.nepse.portfolio.dto.AlertDtos.AlertEventDto;
+import com.nepse.portfolio.dto.AlertDtos.CreateAlertRequest;
+import com.nepse.portfolio.dto.AlertDtos.UpdateAlertRequest;
 import com.nepse.portfolio.exception.ApiException;
-import com.nepse.portfolio.domain.Stock;
+import com.nepse.portfolio.model.Stock;
 import com.nepse.portfolio.repository.StockRepository;
 import com.nepse.portfolio.service.market.StreamService;
 import org.springframework.stereotype.Service;

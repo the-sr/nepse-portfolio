@@ -1,10 +1,9 @@
 package com.nepse.portfolio.service.market;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nepse.portfolio.domain.AppSetting;
-import com.nepse.portfolio.dto.market.MarketCalendarDtos.MarketCalendarRequest;
+import com.nepse.portfolio.model.AppSetting;
+import com.nepse.portfolio.dto.MarketCalendarDtos.MarketCalendarRequest;
 import com.nepse.portfolio.repository.AppSettingRepository;
-import com.nepse.portfolio.service.market.MarketCalendarService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

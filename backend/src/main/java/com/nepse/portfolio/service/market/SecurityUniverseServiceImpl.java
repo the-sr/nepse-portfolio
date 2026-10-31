@@ -1,12 +1,11 @@
 package com.nepse.portfolio.service.market;
 
 import lombok.extern.slf4j.Slf4j;
-import com.nepse.portfolio.service.market.SecurityUniverseService;
 import com.nepse.portfolio.utils.nepse.NepseApiClient;
 import com.nepse.portfolio.utils.nepse.NepseCompany;
 import com.nepse.portfolio.utils.nepse.NepseSecurity;
 
-import com.nepse.portfolio.domain.Stock;
+import com.nepse.portfolio.model.Stock;
 import com.nepse.portfolio.repository.StockRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;

@@ -1,21 +1,18 @@
 package com.nepse.portfolio.service.analysis;
 
-import com.nepse.portfolio.service.analysis.DcaService;
-
-import com.nepse.portfolio.dto.analysis.AnalysisDtos.AverageSimulationRequest;
-import com.nepse.portfolio.dto.analysis.AnalysisDtos.AverageSimulationResponse;
-import com.nepse.portfolio.dto.analysis.AnalysisDtos.DcaOpportunityDto;
-import com.nepse.portfolio.dto.portfolio.PortfolioDtos.HoldingDto;
-import com.nepse.portfolio.dto.portfolio.PortfolioDtos.PortfolioDto;
-import com.nepse.portfolio.dto.portfolio.PortfolioDtos.SummaryDto;
+import com.nepse.portfolio.dto.AnalysisDtos.AverageSimulationRequest;
+import com.nepse.portfolio.dto.AnalysisDtos.AverageSimulationResponse;
+import com.nepse.portfolio.dto.AnalysisDtos.DcaOpportunityDto;
+import com.nepse.portfolio.dto.PortfolioDtos.HoldingDto;
+import com.nepse.portfolio.dto.PortfolioDtos.PortfolioDto;
+import com.nepse.portfolio.dto.PortfolioDtos.SummaryDto;
 import com.nepse.portfolio.service.portfolio.PortfolioService;
 import com.nepse.portfolio.service.settings.SettingsService;
-import com.nepse.portfolio.domain.UserSettings;
+import com.nepse.portfolio.model.UserSettings;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;

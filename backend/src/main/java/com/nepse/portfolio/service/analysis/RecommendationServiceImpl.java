@@ -1,22 +1,22 @@
 package com.nepse.portfolio.service.analysis;
 
-import com.nepse.portfolio.dto.analysis.Indicators;
+import com.nepse.portfolio.dto.Indicators;
 
-import com.nepse.portfolio.dto.analysis.AnalysisDtos.RecommendationDto;
-import com.nepse.portfolio.dto.analysis.AnalysisDtos.StockAnalysisDto;
+import com.nepse.portfolio.dto.AnalysisDtos.RecommendationDto;
+import com.nepse.portfolio.dto.AnalysisDtos.StockAnalysisDto;
 import com.nepse.portfolio.exception.ApiException;
-import com.nepse.portfolio.dto.market.MarketDtos.StockDto;
+import com.nepse.portfolio.dto.MarketDtos.StockDto;
 import com.nepse.portfolio.repository.PriceHistoryRepository;
-import com.nepse.portfolio.domain.Stock;
+import com.nepse.portfolio.model.Stock;
 import com.nepse.portfolio.repository.StockRepository;
-import com.nepse.portfolio.dto.portfolio.PortfolioDtos.HoldingDto;
-import com.nepse.portfolio.dto.portfolio.PortfolioDtos.PortfolioDto;
+import com.nepse.portfolio.dto.PortfolioDtos.HoldingDto;
+import com.nepse.portfolio.dto.PortfolioDtos.PortfolioDto;
 import com.nepse.portfolio.service.portfolio.PortfolioService;
-import com.nepse.portfolio.domain.Trade;
+import com.nepse.portfolio.model.Trade;
 import com.nepse.portfolio.repository.TradeRepository;
 import com.nepse.portfolio.utils.ml.MlClient;
 import com.nepse.portfolio.service.settings.SettingsService;
-import com.nepse.portfolio.domain.UserSettings;
+import com.nepse.portfolio.model.UserSettings;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -88,7 +88,7 @@ public class RecommendationServiceImpl implements RecommendationService {
     }
 
     public Indicators indicatorsFor(Stock stock) {
-        List<com.nepse.portfolio.domain.PriceHistory> history =
+        List<com.nepse.portfolio.model.PriceHistory> history =
                 historyRepository.findTop400ByStockIdOrderByTradeDateDesc(stock.getId());
         return indicatorService.compute(history);
     }

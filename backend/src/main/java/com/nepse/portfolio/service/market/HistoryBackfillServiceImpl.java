@@ -1,12 +1,9 @@
 package com.nepse.portfolio.service.market;
 
 import lombok.extern.slf4j.Slf4j;
-import com.nepse.portfolio.service.market.HistoryBackfillService;
-import com.nepse.portfolio.service.market.MarketCalendarService;
-import com.nepse.portfolio.domain.User;
 import com.nepse.portfolio.utils.scraper.SocrateaiCsv;
 
-import com.nepse.portfolio.domain.Stock;
+import com.nepse.portfolio.model.Stock;
 import com.nepse.portfolio.repository.PriceHistoryRepository;
 import com.nepse.portfolio.repository.StockRepository;
 import org.springframework.beans.factory.annotation.Value;

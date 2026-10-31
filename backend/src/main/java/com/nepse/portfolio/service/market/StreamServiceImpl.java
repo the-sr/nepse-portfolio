@@ -1,10 +1,9 @@
 package com.nepse.portfolio.service.market;
 
 import lombok.extern.slf4j.Slf4j;
-import com.nepse.portfolio.service.market.StreamService;
 
-import com.nepse.portfolio.dto.alert.AlertDtos.AlertEventDto;
-import com.nepse.portfolio.dto.market.MarketDtos.StockDto;
+import com.nepse.portfolio.dto.AlertDtos.AlertEventDto;
+import com.nepse.portfolio.dto.MarketDtos.StockDto;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;

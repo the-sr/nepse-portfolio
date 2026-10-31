@@ -1,14 +1,13 @@
 package com.nepse.portfolio.utils.portfolio;
 
-import com.nepse.portfolio.domain.Trade;
-import com.nepse.portfolio.domain.TradeType;
+import com.nepse.portfolio.model.Trade;
+import com.nepse.portfolio.enums.TradeType;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 

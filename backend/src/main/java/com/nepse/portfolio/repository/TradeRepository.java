@@ -1,6 +1,6 @@
 package com.nepse.portfolio.repository;
 
-import com.nepse.portfolio.domain.Trade;
+import com.nepse.portfolio.model.Trade;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 

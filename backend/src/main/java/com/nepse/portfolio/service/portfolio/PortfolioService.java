@@ -1,13 +1,13 @@
 package com.nepse.portfolio.service.portfolio;
 
-import com.nepse.portfolio.dto.portfolio.PortfolioDtos.ChargesPreviewDto;
-import com.nepse.portfolio.dto.portfolio.PortfolioDtos.CgtReportDto;
-import com.nepse.portfolio.dto.portfolio.PortfolioDtos.HoldingDto;
-import com.nepse.portfolio.dto.portfolio.PortfolioDtos.HistoryPointDto;
-import com.nepse.portfolio.dto.portfolio.PortfolioDtos.PortfolioDto;
-import com.nepse.portfolio.dto.portfolio.PortfolioDtos.SummaryDto;
-import com.nepse.portfolio.dto.portfolio.PortfolioDtos.TradeDto;
-import com.nepse.portfolio.dto.portfolio.PortfolioDtos.TradeRequest;
+import com.nepse.portfolio.dto.PortfolioDtos.ChargesPreviewDto;
+import com.nepse.portfolio.dto.PortfolioDtos.CgtReportDto;
+import com.nepse.portfolio.dto.PortfolioDtos.HoldingDto;
+import com.nepse.portfolio.dto.PortfolioDtos.HistoryPointDto;
+import com.nepse.portfolio.dto.PortfolioDtos.PortfolioDto;
+import com.nepse.portfolio.dto.PortfolioDtos.SummaryDto;
+import com.nepse.portfolio.dto.PortfolioDtos.TradeDto;
+import com.nepse.portfolio.dto.PortfolioDtos.TradeRequest;
 
 import java.util.List;
 

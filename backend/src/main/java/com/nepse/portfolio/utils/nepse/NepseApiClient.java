@@ -1,11 +1,6 @@
 package com.nepse.portfolio.utils.nepse;
 
 import lombok.extern.slf4j.Slf4j;
-import com.nepse.portfolio.domain.User;
-import com.nepse.portfolio.utils.nepse.NepseAuthClient;
-import com.nepse.portfolio.utils.nepse.NepseCompany;
-import com.nepse.portfolio.utils.nepse.NepseLiveQuote;
-import com.nepse.portfolio.utils.nepse.NepseSecurity;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;

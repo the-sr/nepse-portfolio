@@ -1,6 +1,6 @@
 package com.nepse.portfolio.service.auth;
 
-import com.nepse.portfolio.dto.auth.AuthDtos;
+import com.nepse.portfolio.dto.AuthDtos;
 
 public interface AuthService {
     AuthDtos.AuthResponse register(AuthDtos.RegisterRequest request);

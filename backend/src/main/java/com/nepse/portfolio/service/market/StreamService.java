@@ -1,7 +1,7 @@
 package com.nepse.portfolio.service.market;
 
-import com.nepse.portfolio.dto.alert.AlertDtos.AlertEventDto;
-import com.nepse.portfolio.dto.market.MarketDtos.StockDto;
+import com.nepse.portfolio.dto.AlertDtos.AlertEventDto;
+import com.nepse.portfolio.dto.MarketDtos.StockDto;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;

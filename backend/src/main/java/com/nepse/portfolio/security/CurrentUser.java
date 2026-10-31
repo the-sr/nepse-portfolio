@@ -2,7 +2,7 @@ package com.nepse.portfolio.security;
 
 import lombok.RequiredArgsConstructor;
 import com.nepse.portfolio.exception.ApiException;
-import com.nepse.portfolio.domain.User;
+import com.nepse.portfolio.model.User;
 import com.nepse.portfolio.repository.UserRepository;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;

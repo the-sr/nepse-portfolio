@@ -1,21 +1,18 @@
 package com.nepse.portfolio.service.market;
 
 import lombok.extern.slf4j.Slf4j;
-import com.nepse.portfolio.service.market.ScraperService;
-import com.nepse.portfolio.domain.ScrapeRun;
+import com.nepse.portfolio.model.ScrapeRun;
 import com.nepse.portfolio.repository.ScrapeRunRepository;
 import com.nepse.portfolio.utils.scraper.ScrapedQuote;
 
 import com.nepse.portfolio.service.alert.AlertService;
-import com.nepse.portfolio.dto.market.MarketDtos.StockDto;
-import com.nepse.portfolio.domain.PriceHistory;
+import com.nepse.portfolio.dto.MarketDtos.StockDto;
+import com.nepse.portfolio.model.PriceHistory;
 import com.nepse.portfolio.repository.PriceHistoryRepository;
-import com.nepse.portfolio.domain.Stock;
+import com.nepse.portfolio.model.Stock;
 import com.nepse.portfolio.repository.StockRepository;
 import com.nepse.portfolio.utils.scraper.MarketDataProvider;
 import com.nepse.portfolio.utils.nepse.NepseApiClient;
-import com.nepse.portfolio.service.market.MarketCalendarService;
-import com.nepse.portfolio.service.market.StreamService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;

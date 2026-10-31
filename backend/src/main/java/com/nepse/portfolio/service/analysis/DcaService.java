@@ -1,8 +1,8 @@
 package com.nepse.portfolio.service.analysis;
 
-import com.nepse.portfolio.dto.analysis.AnalysisDtos.AverageSimulationRequest;
-import com.nepse.portfolio.dto.analysis.AnalysisDtos.AverageSimulationResponse;
-import com.nepse.portfolio.dto.analysis.AnalysisDtos.DcaOpportunityDto;
+import com.nepse.portfolio.dto.AnalysisDtos.AverageSimulationRequest;
+import com.nepse.portfolio.dto.AnalysisDtos.AverageSimulationResponse;
+import com.nepse.portfolio.dto.AnalysisDtos.DcaOpportunityDto;
 
 import java.util.List;
 

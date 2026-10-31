@@ -1,15 +1,15 @@
 package com.nepse.portfolio.service.auth;
 
-import com.nepse.portfolio.domain.RefreshToken;
-import com.nepse.portfolio.dto.auth.AuthDtos;
+import com.nepse.portfolio.model.RefreshToken;
+import com.nepse.portfolio.dto.AuthDtos;
 import com.nepse.portfolio.repository.RefreshTokenRepository;
 
 import com.nepse.portfolio.exception.ApiException;
 import com.nepse.portfolio.security.JwtService;
-import com.nepse.portfolio.domain.Role;
-import com.nepse.portfolio.domain.User;
+import com.nepse.portfolio.enums.Role;
+import com.nepse.portfolio.model.User;
 import com.nepse.portfolio.repository.UserRepository;
-import com.nepse.portfolio.domain.UserSettings;
+import com.nepse.portfolio.model.UserSettings;
 import com.nepse.portfolio.repository.UserSettingsRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;

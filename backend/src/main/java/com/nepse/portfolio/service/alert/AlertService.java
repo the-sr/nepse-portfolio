@@ -1,10 +1,10 @@
 package com.nepse.portfolio.service.alert;
 
-import com.nepse.portfolio.domain.Stock;
-import com.nepse.portfolio.dto.alert.AlertDtos.AlertDto;
-import com.nepse.portfolio.dto.alert.AlertDtos.AlertEventDto;
-import com.nepse.portfolio.dto.alert.AlertDtos.CreateAlertRequest;
-import com.nepse.portfolio.dto.alert.AlertDtos.UpdateAlertRequest;
+import com.nepse.portfolio.model.Stock;
+import com.nepse.portfolio.dto.AlertDtos.AlertDto;
+import com.nepse.portfolio.dto.AlertDtos.AlertEventDto;
+import com.nepse.portfolio.dto.AlertDtos.CreateAlertRequest;
+import com.nepse.portfolio.dto.AlertDtos.UpdateAlertRequest;
 
 import java.util.List;
 
