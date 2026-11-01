@@ -133,7 +133,16 @@ public class PortfolioServiceImpl implements PortfolioService {
                 when,
                 request.notes()
         );
-        return toDto(tradeRepository.save(trade), stock);
+        Trade saved = tradeRepository.save(trade);
+        // Keep the per-day DP split consistent across all trades of this side.
+        if (request.dpCharge() == null) {
+            boolean buySide = isBuySide(request.type());
+            TradingRates rates = tradingRatesService.effective(userId);
+            recomputeDpCharges(userId, stock.getId(), buySide,
+                    LocalDate.ofInstant(when, MARKET_ZONE), rates);
+            saved = tradeRepository.findById(saved.getId()).orElse(saved);
+        }
+        return toDto(saved, stock);
     }
 
     /** Same math as {@link #addTrade}, nothing saved — the trade form shows this. */
@@ -289,7 +298,7 @@ public class PortfolioServiceImpl implements PortfolioService {
                     ? NepseCostEngine.commission(amount, rates) : request.brokerage();
             sebon = request.sebonFee() == null
                     ? NepseCostEngine.sebonFee(amount, rates) : request.sebonFee();
-            dp = request.dpCharge() == null ? dpChargeFor(when, existingForStock, rates) : request.dpCharge();
+            dp = request.dpCharge() == null ? dpChargeFor(when, existingForStock, rates, false, request.quantity()) : request.dpCharge();
 
             NepseCostEngine.WacLedger ledger = ledgerFor(existingForStock, rates);
             Trade pending = new Trade(userId, stock.getId(), type, request.quantity(), price,
@@ -308,11 +317,15 @@ public class PortfolioServiceImpl implements PortfolioService {
             NepseCostEngine.BuyCosting costing = NepseCostEngine.costBuy(type, price, request.quantity(), rates);
             brokerage = request.brokerage() == null ? costing.commission() : request.brokerage();
             sebon = request.sebonFee() == null ? costing.sebonFee() : request.sebonFee();
-            totalCost = amount.add(brokerage).add(sebon);
+            dp = request.dpCharge() == null
+                    ? dpChargeFor(when, existingForStock, rates, true, request.quantity())
+                    : request.dpCharge();
+            totalCost = amount.add(brokerage).add(sebon).add(dp);
         } else {
             // IPO/FPO/RIGHT/BONUS allotments legitimately carry no fees.
             brokerage = request.brokerage() == null ? BigDecimal.ZERO : request.brokerage();
             sebon = request.sebonFee() == null ? BigDecimal.ZERO : request.sebonFee();
+            dp = request.dpCharge() == null ? BigDecimal.ZERO : request.dpCharge();
             totalCost = amount;
         }
 
@@ -320,14 +333,67 @@ public class PortfolioServiceImpl implements PortfolioService {
                 wac, totalCost, netProceeds, netProfit);
     }
 
-    /** The DP charge hits once per scrip per day, no matter how many sells. */
-    private BigDecimal dpChargeFor(Instant when, List<Trade> existingForStock, TradingRates rates) {
+    /** Prospective DP for one new trade: the per-(side, scrip, day) Rs 25 split
+     *  across all trades of that side on that day, proportional to quantity. */
+    private BigDecimal dpChargeFor(Instant when, List<Trade> existingForStock, TradingRates rates,
+                                   boolean buySide, int newQuantity) {
         BigDecimal rate = rates.dpChargePerScripPerDay() == null ? BigDecimal.ZERO : rates.dpChargePerScripPerDay();
+        if (rate.signum() <= 0 || newQuantity <= 0) {
+            return BigDecimal.ZERO;
+        }
         LocalDate day = LocalDate.ofInstant(when, MARKET_ZONE);
-        boolean soldSameDay = existingForStock.stream()
-                .filter(t -> t.getType() == TradeType.SELL)
-                .anyMatch(t -> LocalDate.ofInstant(t.getTradeDate(), MARKET_ZONE).equals(day));
-        return soldSameDay ? BigDecimal.ZERO : rate;
+        int existingQty = existingForStock.stream()
+                .filter(t -> isBuySide(t.getType()) == buySide)
+                .filter(t -> LocalDate.ofInstant(t.getTradeDate(), MARKET_ZONE).equals(day))
+                .mapToInt(Trade::getQuantity)
+                .sum();
+        int totalQty = existingQty + newQuantity;
+        if (totalQty <= 0) {
+            return rate;
+        }
+        return rate.multiply(BigDecimal.valueOf(newQuantity))
+                .divide(BigDecimal.valueOf(totalQty), 4, RoundingMode.HALF_UP)
+                .setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private boolean isBuySide(TradeType type) {
+        return NepseCostEngine.chargesEntryFees(type);
+    }
+
+    /** Recompute DP for every trade of a given side/scrip/day so the per-day
+     *  Rs 25 is split by quantity and sums exactly to the rate. */
+    private void recomputeDpCharges(Long userId, Long stockId, boolean buySide, LocalDate day,
+                                    TradingRates rates) {
+        BigDecimal rate = rates.dpChargePerScripPerDay() == null ? BigDecimal.ZERO : rates.dpChargePerScripPerDay();
+        List<Trade> group = tradeRepository.findByUserIdAndStockIdOrderByTradeDateAscIdAsc(userId, stockId).stream()
+                .filter(t -> isBuySide(t.getType()) == buySide)
+                .filter(t -> LocalDate.ofInstant(t.getTradeDate(), MARKET_ZONE).equals(day))
+                .toList();
+        if (group.isEmpty()) {
+            return;
+        }
+        int totalQty = group.stream().mapToInt(Trade::getQuantity).sum();
+        if (totalQty <= 0) {
+            return;
+        }
+        BigDecimal allocated = BigDecimal.ZERO;
+        for (int i = 0; i < group.size(); i++) {
+            Trade trade = group.get(i);
+            BigDecimal share;
+            if (i == group.size() - 1) {
+                share = rate.subtract(allocated);
+            } else {
+                share = rate.multiply(BigDecimal.valueOf(trade.getQuantity()))
+                        .divide(BigDecimal.valueOf(totalQty), 4, RoundingMode.HALF_UP)
+                        .setScale(2, RoundingMode.HALF_UP);
+                allocated = allocated.add(share);
+            }
+            if (share.signum() < 0) {
+                share = BigDecimal.ZERO;
+            }
+            trade.setDpCharge(share);
+            tradeRepository.save(trade);
+        }
     }
 
     private NepseCostEngine.WacLedger ledgerFor(List<Trade> trades, TradingRates rates) {
@@ -346,7 +412,13 @@ public class PortfolioServiceImpl implements PortfolioService {
     public void deleteTrade(Long userId, Long tradeId) {
         Trade trade = tradeRepository.findByIdAndUserId(tradeId, userId)
                 .orElseThrow(() -> ApiException.notFound("Trade not found"));
+        Long stockId = trade.getStockId();
+        boolean buySide = isBuySide(trade.getType());
+        LocalDate day = LocalDate.ofInstant(trade.getTradeDate(), MARKET_ZONE);
         tradeRepository.delete(trade);
+        // Recompute the per-day DP split for the affected side.
+        TradingRates rates = tradingRatesService.effective(userId);
+        recomputeDpCharges(userId, stockId, buySide, day, rates);
         // Removing a buy could leave later sells unmatched; rebuild and validate the remaining history.
         List<Trade> remaining = tradeRepository.findByUserIdOrderByTradeDateAscIdAsc(userId);
         validateHistory(remaining);

@@ -403,7 +403,10 @@ export default function PortfolioPage() {
                   <th className="table-th">Symbol</th>
                   <th className="table-th text-right">Qty</th>
                   <th className="table-th text-right">Price</th>
-                  <th className="table-th text-right">Fees</th>
+                  <th className="table-th text-right">Commission</th>
+                  <th className="table-th text-right">SEBON</th>
+                  <th className="table-th text-right">DP</th>
+                  <th className="table-th text-right">Tax</th>
                   <th className="table-th text-right">Total</th>
                   <th className="table-th">Notes</th>
                   <th className="table-th text-right">Delete</th>
@@ -426,7 +429,10 @@ export default function PortfolioPage() {
                     </td>
                     <td className="table-td text-right">{trade.quantity}</td>
                     <td className="table-td text-right">{trade.price.toFixed(2)}</td>
-                    <td className="table-td text-right text-slate-500 dark:text-slate-400">{formatNpr(trade.fees)}</td>
+                    <td className="table-td text-right text-slate-500 dark:text-slate-400">{trade.brokerage > 0 ? formatNpr(trade.brokerage) : '-'}</td>
+                    <td className="table-td text-right text-slate-500 dark:text-slate-400">{trade.sebonFee > 0 ? formatNpr(trade.sebonFee) : '-'}</td>
+                    <td className="table-td text-right text-slate-500 dark:text-slate-400">{trade.dpCharge > 0 ? formatNpr(trade.dpCharge) : '-'}</td>
+                    <td className="table-td text-right text-slate-500 dark:text-slate-400">{trade.tax > 0 ? formatNpr(trade.tax) : '-'}</td>
                     <td className="table-td text-right font-semibold">{formatNpr(trade.total)}</td>
                     <td className="table-td max-w-[180px] truncate text-slate-500 dark:text-slate-400">{trade.notes ?? '—'}</td>
                     <td className="table-td text-right">

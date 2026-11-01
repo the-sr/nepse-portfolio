@@ -153,7 +153,7 @@ public final class NepseCostEngine {
             boolean includeFees = rates.buyFeesIncludedInBasis() == null || rates.buyFeesIncludedInBasis();
             BigDecimal cost = amount;
             if (includeFees) {
-                cost = amount.add(trade.getBrokerage()).add(trade.getSebonFee());
+                cost = amount.add(trade.getBrokerage()).add(trade.getSebonFee()).add(trade.getDpCharge());
             }
             totalCost = totalCost.add(cost);
             quantity += trade.getQuantity();

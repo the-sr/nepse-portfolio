@@ -174,13 +174,16 @@ export default function AddTradeModal({
         type,
         quantity,
         price,
-        brokerage: watch('brokerage') ?? null,
-        tax: watch('tax') ?? null,
+        brokerage: null,
+        sebonFee: null,
+        dpCharge: null,
+        tax: null,
+        tradeDate: watch('tradeDate') ? new Date(`${watch('tradeDate')}T12:00:00`).toISOString() : null,
       }));
     }, 400);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [symbol, type, quantity, price, watch('brokerage'), watch('tax')]);
+  }, [symbol, type, quantity, price, watch('tradeDate')]);
 
   // react-query requires a strictly boolean `enabled`; a falsy-but-not-boolean
   // value (like the empty symbol string '') throws on render.
@@ -290,40 +293,22 @@ export default function AddTradeModal({
             {errors.price && <p className="mt-1 text-xs text-rose-500">{errors.price.message}</p>}
           </div>
 
-          <div>
-            <label className="label" htmlFor="trade-brokerage">
-              Commission override (Rs)
-            </label>
-            <input
-              id="trade-brokerage"
-              type="number"
-              step="0.01"
-              min={0}
-              placeholder={isBonus || isOffer ? '0' : 'auto'}
-              className="input"
-              {...register('brokerage', { valueAsNumber: true })}
-            />
-            <p className="mt-1 text-[10px] text-slate-400">
-              Leave blank to use your rate schedule.
-            </p>
-          </div>
-
-          <div>
-            <label className="label" htmlFor="trade-tax">Tax / TDS override (Rs)</label>
-            <input
-              id="trade-tax"
-              type="number"
-              step="0.01"
-              min={0}
-              placeholder="auto"
-              className="input"
-              {...register('tax', { valueAsNumber: true })}
-            />
-            <p className="mt-1 text-[10px] text-slate-400">
-              Sells: CGT on the gain. Bonus: TDS the company already deducted.
-            </p>
-          </div>
-
+          {/* Charges are computed automatically from quantity, price, trade date and rates. */}
+          {isOffer && (
+            <div className="sm:col-span-2">
+              <p className="text-[11px] text-slate-400">
+                Allotments (IPO/FPO/rights) book at the offer price with no commission, SEBON fee, DP
+                charge or CGT.
+              </p>
+            </div>
+          )}
+          {isBonus && (
+            <div className="sm:col-span-2">
+              <p className="text-[11px] text-slate-400">
+                Bonus shares are free (Rs 0) and dilute your average cost; no fees are charged.
+              </p>
+            </div>
+          )}
           <div>
             <label className="label" htmlFor="trade-date">Trade date</label>
             <input id="trade-date" type="date" className="input" {...register('tradeDate')} />
@@ -347,18 +332,22 @@ export default function AddTradeModal({
                 <dt className="text-[10px] uppercase tracking-wide">Amount</dt>
                 <dd className="font-semibold text-slate-700 dark:text-slate-200">{formatNpr(preview.data.amount)}</dd>
               </div>
-              <div>
-                <dt className="text-[10px] uppercase tracking-wide">Commission</dt>
-                <dd className="font-semibold text-slate-700 dark:text-slate-200">{formatNpr(preview.data.brokerage)}</dd>
-              </div>
-              <div>
-                <dt className="text-[10px] uppercase tracking-wide">SEBON fee</dt>
-                <dd className="font-semibold text-slate-700 dark:text-slate-200">{formatNpr(preview.data.sebonFee)}</dd>
-              </div>
+              {!isOffer && !isBonus && (
+                <>
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-wide">Commission (auto)</dt>
+                    <dd className="font-semibold text-slate-700 dark:text-slate-200">{formatNpr(preview.data.brokerage)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-wide">SEBON fee (auto)</dt>
+                    <dd className="font-semibold text-slate-700 dark:text-slate-200">{formatNpr(preview.data.sebonFee)}</dd>
+                  </div>
+                </>
+              )}
               {isSell && (
                 <>
                   <div>
-                    <dt className="text-[10px] uppercase tracking-wide">DP charge</dt>
+                    <dt className="text-[10px] uppercase tracking-wide">DP charge (auto)</dt>
                     <dd className="font-semibold text-slate-700 dark:text-slate-200">{formatNpr(preview.data.dpCharge)}</dd>
                   </div>
                   <div>
@@ -367,12 +356,19 @@ export default function AddTradeModal({
                       {formatPrice(preview.data.wacPerShare)}
                     </dd>
                   </div>
-                  <div>
-                    <dt className="text-[10px] uppercase tracking-wide">
-                      CGT ({preview.data.cgtRate}% · {preview.data.holdingDays}d)
-                    </dt>
-                    <dd className="font-semibold text-slate-700 dark:text-slate-200">{formatNpr(preview.data.cgt)}</dd>
-                  </div>
+                  {preview.data.cgt > 0 ? (
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-wide">
+                        CGT ({preview.data.cgtRate}% · {preview.data.holdingDays}d)
+                      </dt>
+                      <dd className="font-semibold text-slate-700 dark:text-slate-200">{formatNpr(preview.data.cgt)}</dd>
+                    </div>
+                  ) : (
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-wide">CGT</dt>
+                      <dd className="text-slate-400">No CGT (no gain)</dd>
+                    </div>
+                  )}
                   <div>
                     <dt className="text-[10px] uppercase tracking-wide">Net proceeds</dt>
                     <dd className="font-semibold text-slate-700 dark:text-slate-200">{formatNpr(preview.data.netProceeds)}</dd>
@@ -383,7 +379,19 @@ export default function AddTradeModal({
                   </div>
                 </>
               )}
-              {!isSell && (
+              {!isSell && !isOffer && !isBonus && (
+                <div>
+                  <dt className="text-[10px] uppercase tracking-wide">Total cash out</dt>
+                  <dd className="font-semibold text-slate-700 dark:text-slate-200">{formatNpr(preview.data.totalCost)}</dd>
+                </div>
+              )}
+              {isOffer && (
+                <div>
+                  <dt className="text-[10px] uppercase tracking-wide">Total cash out</dt>
+                  <dd className="font-semibold text-slate-700 dark:text-slate-200">{formatNpr(preview.data.totalCost)}</dd>
+                </div>
+              )}
+              {isBonus && (
                 <div>
                   <dt className="text-[10px] uppercase tracking-wide">Total cash out</dt>
                   <dd className="font-semibold text-slate-700 dark:text-slate-200">{formatNpr(preview.data.totalCost)}</dd>
