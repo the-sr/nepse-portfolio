@@ -4,7 +4,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import com.nepse.portfolio.dto.AlertDtos.AlertEventDto;
 import com.nepse.portfolio.dto.MarketDtos.StockDto;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -59,7 +58,6 @@ public class StreamServiceImpl implements StreamService {
         }
     }
 
-    @Scheduled(fixedRate = 20000)
     public void heartbeat() {
         for (SseEmitter emitter : priceEmitters) {
             try {

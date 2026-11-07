@@ -90,8 +90,6 @@ app:
   # NEPSE's own (undocumented) public API. Unofficial, educational use.
   nepse:
     enabled: ${NEPSE_ENABLED:true}
-    # Import NEPSE's full security universe on startup (set false for offline demos).
-    universe-on-startup: ${NEPSE_UNIVERSE_ON_STARTUP:true}
     base-url: ${NEPSE_BASE_URL:https://www.nepalstock.com}
     token-path: /api/authenticate/prove
     live-market-path: /api/nots/lives-market
@@ -111,7 +109,6 @@ app:
       # admin endpoint always stays available.
       auto: ${HISTORY_BACKFILL_AUTO:true}
       days: ${HISTORY_BACKFILL_DAYS:260}
-      repair-cron: "0 40 15 * * MON-FRI"
   ml:
     enabled: ${ML_ENABLED:true}
     base-url: ${ML_SERVICE_URL:http://localhost:8000}
@@ -121,8 +118,6 @@ app:
   contact:
     admin-email: ${ADMIN_EMAIL:}
     from: ${MAIL_FROM:no-reply@nepse.local}
-  seed:
-    demo-user: ${SEED_DEMO_USER:true}
 
 logging:
   level:

@@ -13,10 +13,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-class HistoryBackfillGapTest {
+class NepsePriceHistoryGapTest {
 
     private PriceHistoryRepository historyRepository;
-    private HistoryBackfillServiceImpl service;
+    private NepsePriceHistoryServiceImpl service;
     private final LocalDate today = LocalDate.now();
 
     @BeforeEach
@@ -26,7 +26,7 @@ class HistoryBackfillGapTest {
         // calendar.isTradingDay depends on the real date, so tests only rely on
         // scenarios that hold regardless of the day of the week.
         when(calendar.isTradingDay(org.mockito.ArgumentMatchers.any())).thenReturn(true);
-        service = new HistoryBackfillServiceImpl(null, null, null, calendar,
+        service = new NepsePriceHistoryServiceImpl(null, null, null, calendar,
                 historyRepository, null, 6, "Asia/Kathmandu");
     }
 

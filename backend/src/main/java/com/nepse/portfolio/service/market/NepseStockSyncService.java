@@ -3,20 +3,13 @@ package com.nepse.portfolio.service.market;
 import java.util.Locale;
 import java.util.Map;
 
-public interface SecurityUniverseService {
+public interface NepseStockSyncService {
 
-    record Result(
-            int activeSecurities,
-            int companyRecords,
-            int added,
-            int updated,
-            int deactivated,
-            int withoutSector,
-            Map<String, Integer> byInstrumentType
-    ) {
+    record Result(int activeSecurities, int companyRecords, int added, int updated,
+                  int deactivated, int withoutSector, Map<String, Integer> byInstrumentType) {
     }
 
-    Result sync();
+    Result syncStocks();
 
     /** NEPSE's own classification, with a name-based fallback for promoter shares. */
     static String classifyFromName(String name) {

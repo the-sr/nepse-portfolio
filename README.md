@@ -118,18 +118,15 @@ docker compose ps
 | ML docs | http://localhost:8000/docs |
 | Postgres | `localhost:5432` (user/db from `.env`) |
 
-First startup runs Flyway, imports NEPSE's live security universe, and creates a demo user, demo
-trades and alerts. Give the backend ~20–40 s on the first run. Price history is not fabricated —
-import it once with the admin backfill in [Market data notes](#market-data-notes).
+First startup runs Flyway, imports NEPSE's live security universe, and (optionally) backfills
+price history. No demo accounts or trades are created. Give the backend ~20–40 s on the first run.
+Price history is not fabricated — import it once with the admin backfill in
+[Market data notes](#market-data-notes).
 
-### Demo accounts
+### Accounts
 
-| Email | Password | Role |
-| --- | --- | --- |
-| `demo@nepse.local` | `demo1234` | USER |
-| `admin@nepse.local` | `admin1234` | ADMIN |
-
-Change or disable these with `SEED_DEMO_USER=false` before any real deployment.
+No demo accounts are seeded. Register via `POST /api/auth/register`; promote an admin by
+setting `role = 'ADMIN'` on the user row in the database.
 
 ### Stop / reset
 
@@ -183,33 +180,21 @@ non-empty response wins and the chosen source is recorded in `scrape_runs`.
 
 **Historical prices** come from
 [socrateai-official/nepse-open-data](https://github.com/socrateai-official/nepse-open-data) (MIT),
-one corporate-action-adjusted OHLC CSV per trading day. Import or refresh it with:
-
-```bash
-# ADMIN token required
-curl -X POST "http://localhost:8080/api/admin/market/backfill?days=260" \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-The import replaces stored bars in the covered date range, so it is safe to run repeatedly. After
-importing, stocks that did not trade in the latest session take their most recent real close from
-the history table (`source = HISTORY`) instead of showing zero.
+one corporate-action-adjusted OHLC CSV per trading day. Price history is backfilled automatically
+on startup and repaired nightly, so no manual import is required. The import replaces stored bars
+in the covered date range, so it is safe to run repeatedly. After importing, stocks that did not
+trade in the latest session take their most recent real close from the history table
+(`source = HISTORY`) instead of showing zero.
 
 **Security universe.** The app imports every security NEPSE currently lists as active — equities,
 promoter shares, mutual funds, debentures and preference shares — using
 `/api/nots/security?nonDelisted=true` and `/api/nots/company/list`. This runs automatically on
-startup (disable with `NEPSE_UNIVERSE_ON_STARTUP=false`) and can also be re-run on demand. Each row
+startup (when `NEPSE_ENABLED=true`) and again every night at midnight. Each row
 keeps NEPSE's own sector (`sector`) and instrument classification (`instrument_type`). Securities
 that drop out of the active list are marked `active = false` rather than deleted, so existing
 trades, alerts and price history remain valid; new trades and alerts for them are rejected.
-Re-run the import when NEPSE adds or delists securities, then run the history backfill so new
+The nightly sync keeps new listings and delistings up to date; run the history backfill so new
 symbols get real bars:
-
-```bash
-# ADMIN token required
-curl -X POST "http://localhost:8080/api/admin/market/universe" \
-  -H "Authorization: Bearer $TOKEN"
-```
 
 `GET /api/market/stocks` returns active securities only; pass `?includeInactive=true` for the full
 table. `GET /api/market/stocks/{symbol}` still resolves inactive symbols so old portfolios open.
@@ -298,7 +283,7 @@ All routes below are under `/api`; everything except auth, public market reads a
 | Settings | `GET/PUT /settings`, `GET /settings/trading-rates`, `GET /settings/trading-rates/effective`, `GET /settings/trading-rates/defaults`, `PUT /settings/trading-rates` |
 | Contact | `POST /contact` |
 | Streams | `GET /market/stream`, `GET /alerts/stream?access_token=…` (SSE) |
-| Admin | `GET /admin/market/status`, `POST /admin/market/universe`, `POST /admin/market/sync`, `POST /admin/market/backfill?days=260`, `GET /admin/ml/status` |
+| Admin | `GET /admin/market/status`, `POST /admin/market/sync`, `GET /admin/ml/status` |
 
 Error responses use a consistent `{timestamp, status, error, message, path}` body. Validation errors
 include a `fieldErrors` map.
@@ -319,11 +304,9 @@ Key variables (see `.env.example` and `backend/src/main/resources/application.ym
 | `SCRAPER_IGNORE_MARKET_HOURS` | false | Demo mode outside NEPSE hours |
 | `MARKET_PROVIDERS` | `nepse,sharesansar` | Provider order; first success wins |
 | `NEPSE_ENABLED` | true | Enable NEPSE's live-market API |
-| `NEPSE_UNIVERSE_ON_STARTUP` | true | Import NEPSE's security universe on startup |
 | `HISTORY_BACKFILL_BASE_URL` | socrateai dataset | Source for real historical CSVs |
 | `ML_ENABLED` / `ML_SERVICE_URL` | true / localhost:8000 | ML integration |
 | `ML_MIN_CONFIDENCE` | 0.35 | Minimum model probability before it overrides the rules |
-| `SEED_DEMO_USER` | true | Create demo/admin accounts and sample trades |
 | `MAIL_*`, `ADMIN_EMAIL`, `MAIL_FROM` | blank | Optional contact-form email |
 
 ---
@@ -386,7 +369,7 @@ engine is the intentional fallback.
 - The SPA stores the access and refresh tokens in `localStorage` for simplicity and refreshes the
   access token automatically; refresh tokens are also persisted server-side and rotated on use. For
   a hardened deployment, move tokens to httpOnly cookies and add a strict Content-Security-Policy.
-- Passwords are BCrypt-hashed. Never commit `.env` or use the demo credentials in production.
+- Passwords are BCrypt-hashed. Never commit `.env`.
 - Run behind TLS, restrict CORS, rotate `JWT_SECRET`, and disable demo seeding for real deployments.
 - This project is for education and personal record-keeping. It is **not** a brokerage, does not
   place orders, and does not provide financial, tax or investment advice. Verify every number

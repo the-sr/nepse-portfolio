@@ -22,25 +22,15 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/**
- * Synchronises the {@code stocks} table with NEPSE's live security universe.
- *
- * <p>NEPSE lists equities, mutual fund units, debentures and promoter shares as
- * separate securities. All of them are imported, tagged with NEPSE's own
- * {@code instrumentType} and sector name. Securities that disappear from the
- * exchange's active list are marked inactive rather than deleted, because
- * trades, alerts and price history reference them.</p>
- */
 @Service
 @Slf4j
-public class SecurityUniverseServiceImpl implements SecurityUniverseService {
-
+public class NepseStockSyncServiceImpl implements NepseStockSyncService {
 
     private final NepseApiClient apiClient;
     private final StockRepository stockRepository;
     private final TransactionTemplate transaction;
 
-    public SecurityUniverseServiceImpl(NepseApiClient apiClient,
+    public NepseStockSyncServiceImpl(NepseApiClient apiClient,
                                    StockRepository stockRepository,
                                    PlatformTransactionManager transactionManager) {
         this.apiClient = apiClient;
@@ -48,15 +38,16 @@ public class SecurityUniverseServiceImpl implements SecurityUniverseService {
         this.transaction = new TransactionTemplate(transactionManager);
     }
 
-    public Result sync() {
+    @Override
+    public Result syncStocks() {
         List<NepseSecurity> securities = apiClient.fetchActiveSecurities();
         List<NepseCompany> companies = apiClient.fetchCompanyList();
 
         Result result = transaction.execute(status -> persist(securities, companies));
         if (result == null) {
-            throw new IllegalStateException("Universe sync was rolled back");
+            throw new IllegalStateException("Stock sync was rolled back");
         }
-        log.info("Universe sync: {} securities, {} added, {} updated, {} deactivated",
+        log.info("Stock sync: {} securities, {} added, {} updated, {} deactivated",
                 result.activeSecurities(), result.added(), result.updated(), result.deactivated());
         return result;
     }
@@ -88,7 +79,7 @@ public class SecurityUniverseServiceImpl implements SecurityUniverseService {
             }
 
             NepseCompany exact = bySymbol.get(symbol);
-            NepseCompany company = exact != null ? exact : bySymbol.get(SecurityUniverseService.baseSymbol(symbol));
+            NepseCompany company = exact != null ? exact : bySymbol.get(NepseStockSyncService.baseSymbol(symbol));
 
             String name = firstNonBlank(security.securityName(),
                     company == null ? null : company.companyName());
@@ -103,7 +94,7 @@ public class SecurityUniverseServiceImpl implements SecurityUniverseService {
 
             String instrumentType = exact != null
                     ? firstNonBlank(exact.instrumentType(), "Equity")
-                    : SecurityUniverseService.classifyFromName(name);
+                    : NepseStockSyncService.classifyFromName(name);
             byType.merge(instrumentType, 1, Integer::sum);
 
             Stock stock = existing.get(symbol);

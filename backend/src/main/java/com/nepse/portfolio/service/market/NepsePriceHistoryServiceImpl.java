@@ -48,7 +48,7 @@ import java.util.stream.Collectors;
  */
 @Service
 @Slf4j
-public class HistoryBackfillServiceImpl implements HistoryBackfillService {
+public class NepsePriceHistoryServiceImpl implements NepsePriceHistoryService {
 
 
     private static final int MAX_DAYS = 2000;
@@ -106,7 +106,7 @@ public class HistoryBackfillServiceImpl implements HistoryBackfillService {
     private final ZoneId zone;
     private final ReentrantLock backfillLock = new ReentrantLock();
 
-    public HistoryBackfillServiceImpl(JdbcTemplate jdbc,
+    public NepsePriceHistoryServiceImpl(JdbcTemplate jdbc,
                                   PlatformTransactionManager transactionManager,
                                   StockRepository stockRepository,
                                   MarketCalendarService marketCalendarService,

@@ -2,8 +2,6 @@ package com.nepse.portfolio.controller;
 
 import com.nepse.portfolio.service.market.ScraperService;
 
-import com.nepse.portfolio.service.market.HistoryBackfillService;
-import com.nepse.portfolio.service.market.SecurityUniverseService;
 import com.nepse.portfolio.service.market.MarketCalendarService;
 import com.nepse.portfolio.service.portfolio.TradingRatesService;
 import com.nepse.portfolio.dto.MarketCalendarDtos.MarketCalendarRequest;
@@ -20,8 +18,6 @@ import java.util.Map;
 public class AdminController {
 
     private final ScraperService scraperService;
-    private final HistoryBackfillService historyBackfillService;
-    private final SecurityUniverseService securityUniverseService;
     private final MarketCalendarService marketCalendarService;
     private final TradingRatesService tradingRatesService;
     private final MlClient mlClient;
@@ -58,24 +54,6 @@ public class AdminController {
     public MarketCalendarService.CalendarView updateCalendar(
             @RequestBody MarketCalendarRequest request) {
         return marketCalendarService.update(request);
-    }
-
-    /**
-     * Replaces stored price history with real NEPSE data from the open dataset.
-     * This performs one HTTP request per trading day, so allow up to a minute.
-     */
-    @PostMapping("/market/backfill")
-    public HistoryBackfillService.Result backfill(@RequestParam(defaultValue = "260") int days) {
-        return historyBackfillService.backfill(days);
-    }
-
-    /**
-     * Imports every security NEPSE currently lists as active (equities, mutual
-     * funds, debentures and promoter shares) and marks missing ones inactive.
-     */
-    @PostMapping("/market/universe")
-    public SecurityUniverseService.Result syncUniverse() {
-        return securityUniverseService.sync();
     }
 
     @GetMapping("/ml/status")
