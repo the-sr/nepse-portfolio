@@ -8,6 +8,8 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
 
 /**
@@ -148,6 +150,10 @@ public final class NepseCostEngine {
         private BigDecimal totalTax = BigDecimal.ZERO;
         private BigDecimal totalNetProfit = BigDecimal.ZERO;
 
+        // Lots are kept for the holding-period (FIFO) test only; cost basis
+        // still uses the blended WACC above.
+        private final Deque<MutableLot> lots = new ArrayDeque<>();
+
         public void addBuy(Trade trade, TradingRates rates) {
             BigDecimal amount = trade.getPrice().multiply(BigDecimal.valueOf(trade.getQuantity()));
             boolean includeFees = rates.buyFeesIncludedInBasis() == null || rates.buyFeesIncludedInBasis();
@@ -157,6 +163,7 @@ public final class NepseCostEngine {
             }
             totalCost = totalCost.add(cost);
             quantity += trade.getQuantity();
+            lots.addLast(new MutableLot(trade.getQuantity(), trade.getTradeDate()));
             if (earliestLot == null || trade.getTradeDate().isBefore(earliestLot)) {
                 earliestLot = trade.getTradeDate();
             }
@@ -170,10 +177,53 @@ public final class NepseCostEngine {
             BigDecimal proceeds = gross.subtract(fees);
             BigDecimal cost = wac.multiply(BigDecimal.valueOf(qty));
             BigDecimal gain = proceeds.subtract(cost);
-            int holding = earliestLot == null ? 0
-                    : holdingDays(earliestLot, trade.getTradeDate(), zone);
-            BigDecimal rate = cgtRate(holding, rates);
-            BigDecimal tax = cgtTax(gain, rate);
+
+            // Consume lots FIFO to determine how many of the sold shares came
+            // from short-term vs long-term holdings.
+            int remaining = qty;
+            int shortQty = 0;
+            int longQty = 0;
+            int firstHolding = 0;
+            boolean first = true;
+            while (remaining > 0 && !lots.isEmpty()) {
+                MutableLot lot = lots.peekFirst();
+                int matched = Math.min(remaining, lot.quantity);
+                int holding = holdingDays(lot.acquiredAt, trade.getTradeDate(), zone);
+                if (first) {
+                    firstHolding = holding;
+                    first = false;
+                }
+                if (holding <= (rates.cgtLongThresholdDays() == null ? CGT_SHORT_MAX_DAYS : rates.cgtLongThresholdDays())) {
+                    shortQty += matched;
+                } else {
+                    longQty += matched;
+                }
+                lot.quantity -= matched;
+                remaining -= matched;
+                if (lot.quantity == 0) {
+                    lots.removeFirst();
+                }
+            }
+            if (remaining > 0) {
+                // Oversell: treat the unmatched remainder as the oldest lot's rate.
+                if (first) {
+                    firstHolding = 0;
+                }
+                longQty += remaining;
+            }
+
+            BigDecimal rate;
+            if (shortQty + longQty > 0) {
+                BigDecimal shortRate = rates.cgtShortRate() == null ? BigDecimal.ZERO : rates.cgtShortRate();
+                BigDecimal longRate = rates.cgtLongRate() == null ? BigDecimal.ZERO : rates.cgtLongRate();
+                BigDecimal weighted = shortRate.multiply(BigDecimal.valueOf(shortQty))
+                        .add(longRate.multiply(BigDecimal.valueOf(longQty)));
+                rate = weighted.divide(BigDecimal.valueOf(shortQty + longQty), 4, RoundingMode.HALF_UP);
+            } else {
+                rate = cgtRate(firstHolding, rates);
+            }
+
+            BigDecimal tax = gain.signum() <= 0 ? BigDecimal.ZERO : gain.multiply(rate).divide(HUNDRED, 2, RoundingMode.HALF_UP);
             BigDecimal netProfit = gain.subtract(tax);
 
             totalCost = totalCost.subtract(cost);
@@ -181,14 +231,27 @@ public final class NepseCostEngine {
             totalTax = totalTax.add(tax);
             totalNetProfit = totalNetProfit.add(netProfit);
 
+            // Keep earliestLot in sync with the first remaining lot.
+            earliestLot = lots.isEmpty() ? null : lots.peekFirst().acquiredAt;
+
             return new SellCosting(gross, trade.getBrokerage(), trade.getSebonFee(),
-                    trade.getDpCharge(), proceeds, tax, netProfit, wac, holding, rate);
+                    trade.getDpCharge(), proceeds, tax, netProfit, wac, firstHolding, rate);
         }
 
         public BigDecimal wacPerShare() {
             return quantity <= 0
                     ? BigDecimal.ZERO
                     : totalCost.divide(BigDecimal.valueOf(quantity), 4, RoundingMode.HALF_UP);
+        }
+
+        private static final class MutableLot {
+            private int quantity;
+            private final Instant acquiredAt;
+
+            private MutableLot(int quantity, Instant acquiredAt) {
+                this.quantity = quantity;
+                this.acquiredAt = acquiredAt;
+            }
         }
 
         public int openQuantity() {

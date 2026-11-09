@@ -12,8 +12,7 @@ ALTER TABLE user_settings ADD COLUMN trading_rates_json TEXT;
 -- deploy. Seed the verified defaults (see docs/nepse-costs.md).
 INSERT INTO app_settings (setting_key, setting_value)
 VALUES ('trading-rates',
-'{"commissionTiers":[{"upTo":2500,"percent":null,"flat":10},'
-'{"upTo":50000,"percent":0.36,"flat":null},'
+'{"commissionTiers":[{"upTo":50000,"percent":0.36,"flat":null},'
 '{"upTo":500000,"percent":0.33,"flat":null},'
 '{"upTo":2000000,"percent":0.31,"flat":null},'
 '{"upTo":null,"percent":0.30,"flat":null}],'

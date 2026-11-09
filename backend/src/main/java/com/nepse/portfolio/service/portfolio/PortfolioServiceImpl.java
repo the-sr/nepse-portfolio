@@ -111,12 +111,29 @@ public class PortfolioServiceImpl implements PortfolioService {
                 tradeRepository.findByUserIdAndStockIdOrderByTradeDateAscIdAsc(userId, stock.getId());
 
         if (request.type() == TradeType.SELL) {
-            NepseCostEngine.WacLedger ledger = ledgerFor(existingForStock, tradingRatesService.effective(userId));
+            // Only shares that existed on or before the sell date count; later buys
+            // must not make an earlier sell look affordable.
+            List<Trade> asOf = existingForStock.stream()
+                    .filter(t -> !t.getTradeDate().isAfter(when))
+                    .toList();
+            NepseCostEngine.WacLedger ledger = ledgerFor(asOf, tradingRatesService.effective(userId));
             int available = ledger.openQuantity();
             if (request.quantity() > available) {
-                throw ApiException.badRequest("You only hold " + available + " shares of " + stock.getSymbol());
+                throw ApiException.badRequest("You only hold " + available + " shares of "
+                        + stock.getSymbol() + " as of that date");
             }
         }
+
+        // Guard the whole per-stock timeline so a back-dated trade can never
+        // push the running balance negative at any point in time.
+        List<Trade> candidateHistory = new ArrayList<>(existingForStock);
+        candidateHistory.add(new Trade(
+                userId, stock.getId(), request.type(), request.quantity(),
+                request.price() == null ? BigDecimal.ZERO : request.price(),
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                when, request.notes()));
+        candidateHistory.sort(Comparator.comparing(Trade::getTradeDate));
+        validateHistory(candidateHistory);
 
         Quote quote = quote(userId, stock, request, when, existingForStock);
 
@@ -135,7 +152,12 @@ public class PortfolioServiceImpl implements PortfolioService {
         );
         Trade saved = tradeRepository.save(trade);
         // Keep the per-day DP split consistent across all trades of this side.
-        if (request.dpCharge() == null) {
+        // Free-entry types (IPO/FPO/RIGHT/BONUS) are never DP-chargeable, so
+        // they must not trigger a recompute that could reset other trades.
+        boolean chargeable = request.type() == TradeType.BUY
+                || request.type() == TradeType.AUCTION
+                || request.type() == TradeType.SELL;
+        if (chargeable && request.dpCharge() == null) {
             boolean buySide = isBuySide(request.type());
             TradingRates rates = tradingRatesService.effective(userId);
             recomputeDpCharges(userId, stock.getId(), buySide,
@@ -298,9 +320,14 @@ public class PortfolioServiceImpl implements PortfolioService {
                     ? NepseCostEngine.commission(amount, rates) : request.brokerage();
             sebon = request.sebonFee() == null
                     ? NepseCostEngine.sebonFee(amount, rates) : request.sebonFee();
-            dp = request.dpCharge() == null ? dpChargeFor(when, existingForStock, rates, false, request.quantity()) : request.dpCharge();
+            // Cost the sell against the shares that existed on or before the sell
+            // date, so later buys cannot distort the WAC / CGT.
+            List<Trade> asOf = existingForStock.stream()
+                    .filter(t -> !t.getTradeDate().isAfter(when))
+                    .toList();
+            dp = request.dpCharge() == null ? dpChargeFor(when, asOf, rates, false, request.quantity()) : request.dpCharge();
 
-            NepseCostEngine.WacLedger ledger = ledgerFor(existingForStock, rates);
+            NepseCostEngine.WacLedger ledger = ledgerFor(asOf, rates);
             Trade pending = new Trade(userId, stock.getId(), type, request.quantity(), price,
                     brokerage, sebon, dp, BigDecimal.ZERO, when, null);
             NepseCostEngine.SellCosting costing = ledger.addSell(pending, rates, MARKET_ZONE);
@@ -325,7 +352,8 @@ public class PortfolioServiceImpl implements PortfolioService {
             // IPO/FPO/RIGHT/BONUS allotments legitimately carry no fees.
             brokerage = request.brokerage() == null ? BigDecimal.ZERO : request.brokerage();
             sebon = request.sebonFee() == null ? BigDecimal.ZERO : request.sebonFee();
-            dp = request.dpCharge() == null ? BigDecimal.ZERO : request.dpCharge();
+            // Free-entry types (IPO/FPO/RIGHT/BONUS) carry no DP charge.
+            dp = BigDecimal.ZERO;
             totalCost = amount;
         }
 

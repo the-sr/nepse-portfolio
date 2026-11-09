@@ -25,8 +25,11 @@ public class NepseStartupService implements CommandLineRunner {
     @Value("${app.history.backfill.auto:true}")
     private boolean historyAuto;
 
-    @Value("${app.history.backfill.days:260}")
+    @Value("${app.history.backfill.days:1250}")
     private int historyDays;
+
+    @Value("${app.history.backfill.all:false}")
+    private boolean historyAll;
 
     @Override
     public void run(String... args) {
@@ -49,13 +52,19 @@ public class NepseStartupService implements CommandLineRunner {
 
         Thread worker = new Thread(() -> {
             try {
-                priceHistoryService.repairIfStale(historyDays).ifPresentOrElse(
-                        result -> log.info("Startup history backfill: {} files, {} bars written ({}..{}), {} replaced",
-                                result.filesFetched(), result.barsWritten(), result.from(), result.to(), result.barsReplaced()),
-                        () -> log.info("History check: price history is already current"));
+                if (historyAll) {
+                    NepsePriceHistoryService.Result result = priceHistoryService.backfillAll();
+                    log.info("Startup history backfill (all): {} files, {} bars written ({}..{}), {} replaced, {} hydrated",
+                            result.filesFetched(), result.barsWritten(), result.from(), result.to(),
+                            result.barsReplaced(), result.pricesBackfilled());
+                } else {
+                    priceHistoryService.repairIfStale(historyDays).ifPresentOrElse(
+                            result -> log.info("Startup history backfill: {} files, {} bars written ({}..{}), {} replaced",
+                                    result.filesFetched(), result.barsWritten(), result.from(), result.to(), result.barsReplaced()),
+                            () -> log.info("History check: price history is already current"));
+                }
             } catch (Exception ex) {
-                log.warn("Startup history backfill failed (run POST /api/admin/market/backfill to retry manually): {}",
-                        ex.getMessage());
+                log.warn("Startup history backfill failed: {}", ex.getMessage());
             }
         }, "history-backfill-starter");
         worker.setDaemon(true);

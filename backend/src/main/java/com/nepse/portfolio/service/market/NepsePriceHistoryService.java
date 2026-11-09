@@ -25,6 +25,12 @@ public interface NepsePriceHistoryService {
     Result backfill(int days);
 
     /**
+     * Import every trading-day file the dataset provides (back to its first
+     * available date). Intended for a one-time full seed.
+     */
+    Result backfillAll();
+
+    /**
      * True when the newest stored bar is older than the calendar's most recent
      * trading day (or the table is empty), i.e. history has a gap.
      */

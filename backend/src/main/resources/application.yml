@@ -108,7 +108,8 @@ app:
       # nightly check after market close that repairs missing days. The manual
       # admin endpoint always stays available.
       auto: ${HISTORY_BACKFILL_AUTO:true}
-      days: ${HISTORY_BACKFILL_DAYS:260}
+      days: ${HISTORY_BACKFILL_DAYS:1250}
+      all: ${HISTORY_BACKFILL_ALL:false}
   ml:
     enabled: ${ML_ENABLED:true}
     base-url: ${ML_SERVICE_URL:http://localhost:8000}

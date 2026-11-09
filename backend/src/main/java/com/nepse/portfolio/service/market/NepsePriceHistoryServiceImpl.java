@@ -143,6 +143,116 @@ public class NepsePriceHistoryServiceImpl implements NepsePriceHistoryService {
         }
     }
 
+    @Override
+    public Result backfillAll() {
+        if (!backfillLock.tryLock()) {
+            throw new IllegalStateException("A history backfill is already running");
+        }
+        try {
+            return doBackfillAll();
+        } finally {
+            backfillLock.unlock();
+        }
+    }
+
+    private Result doBackfillAll() {
+        LocalDate floor = LocalDate.of(2010, 1, 1);
+        List<LocalDate> candidates = new ArrayList<>();
+        LocalDate cursor = LocalDate.now(zone);
+        while (!cursor.isBefore(floor)) {
+            if (marketCalendarService.isTradingDay(cursor)) {
+                candidates.add(cursor);
+            }
+            cursor = cursor.minusDays(1);
+        }
+
+        Map<LocalDate, List<SocrateaiCsv.Row>> data = new ConcurrentHashMap<>();
+        List<String> missing = Collections.synchronizedList(new ArrayList<>());
+
+        ExecutorService pool = Executors.newFixedThreadPool(parallelism, runnable -> {
+            Thread thread = new Thread(runnable, "history-backfill-all");
+            thread.setDaemon(true);
+            return thread;
+        });
+        try {
+            List<CompletableFuture<Void>> tasks = candidates.stream()
+                    .map(d -> CompletableFuture.runAsync(() -> load(d, data, missing), pool))
+                    .toList();
+            CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new)).join();
+        } finally {
+            pool.shutdown();
+        }
+
+        if (data.isEmpty()) {
+            throw new IllegalStateException("No history files could be fetched from " + baseUrl);
+        }
+
+        Result result = transaction.execute(status -> persistAll(data, missing));
+        if (result == null) {
+            throw new IllegalStateException("Backfill was rolled back");
+        }
+        return result;
+    }
+
+    private Result persistAll(Map<LocalDate, List<SocrateaiCsv.Row>> data,
+                              List<String> missing) {
+        Map<String, Stock> bySymbol = stockRepository.findAll().stream()
+                .collect(Collectors.toMap(s -> s.getSymbol().toUpperCase(Locale.ROOT),
+                        Function.identity(), (first, second) -> first));
+
+        List<Object[]> bars = new ArrayList<>();
+        Set<String> unknown = new LinkedHashSet<>();
+        Set<String> matchedSymbols = new HashSet<>();
+        LocalDate min = null;
+        LocalDate max = null;
+
+        for (List<SocrateaiCsv.Row> rows : data.values()) {
+            for (SocrateaiCsv.Row row : rows) {
+                Stock stock = bySymbol.get(row.symbol());
+                if (stock == null) {
+                    unknown.add(row.symbol());
+                    continue;
+                }
+                bars.add(new Object[]{stock.getId(), row.date(), row.open(), row.high(),
+                        row.low(), row.close(), row.volume()});
+                matchedSymbols.add(row.symbol());
+                if (min == null || row.date().isBefore(min)) {
+                    min = row.date();
+                }
+                if (max == null || row.date().isAfter(max)) {
+                    max = row.date();
+                }
+            }
+        }
+
+        if (bars.isEmpty()) {
+            throw new IllegalStateException("No dataset rows matched symbols in the stocks table");
+        }
+
+        int deleted = 0;
+        for (LocalDate date : data.keySet()) {
+            deleted += jdbc.update("delete from price_history where trade_date = ?", date);
+        }
+
+        AtomicInteger written = new AtomicInteger();
+        for (int start = 0; start < bars.size(); start += BATCH_SIZE) {
+            List<Object[]> chunk = bars.subList(start, Math.min(bars.size(), start + BATCH_SIZE));
+            jdbc.batchUpdate(INSERT_SQL, chunk);
+            written.addAndGet(chunk.size());
+        }
+
+        int hydrated = jdbc.update(HYDRATE_SQL);
+
+        List<String> unknownSamples = unknown.stream().limit(15).toList();
+        List<String> missingSamples = List.copyOf(missing).stream().limit(15).toList();
+
+        log.info("History backfill (all): {} bars for {} symbols ({}..{}), replaced {} rows, {} unknown symbols, hydrated {} prices",
+                written.get(), matchedSymbols.size(), min, max, deleted, unknown.size(), hydrated);
+
+        return new Result(0, data.size(), missing.size(), missingSamples, written.get(),
+                matchedSymbols.size(), unknown.size(), unknownSamples, deleted, hydrated, min, max);
+    }
+
     private Result doBackfill(int days) {
 
         List<LocalDate> candidates = tradingDates(days);
