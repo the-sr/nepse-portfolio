@@ -46,12 +46,12 @@ class NepseCostEngineTest {
     // ---- commission tiers -------------------------------------------------
 
     @Test
-    void smallestTransactionsChargeTheFlatMinimum() {
-        // Rs 10 * 50 shares = Rs 500 amount → Rs 10 flat minimum, not 0.36%*500 = 1.80
-        assertEquals(0, new BigDecimal("10.00").compareTo(
+    void smallTransactionsChargePercentageWithoutFlatMinimum() {
+        // Rs 10 * 50 shares = Rs 500 amount → 0.36% commission = Rs 1.80.
+        assertEquals(0, new BigDecimal("1.80").compareTo(
                 NepseCostEngine.commission(new BigDecimal("500"), RATES)));
-        // The flat tier only applies up to Rs 2,500 of amount.
-        assertEquals(0, new BigDecimal("10.00").compareTo(
+        // Rs 2,500 is still charged at the 0.36% rate, with no Rs 10 flat minimum.
+        assertEquals(0, new BigDecimal("9.00").compareTo(
                 NepseCostEngine.commission(new BigDecimal("2500"), RATES)));
     }
 
@@ -76,8 +76,8 @@ class NepseCostEngineTest {
         // 0.31% of 1,000,000 = 3,100
         assertEquals(0, new BigDecimal("3100.00").compareTo(
                 NepseCostEngine.commission(new BigDecimal("1000000"), RATES)));
-        // 0.30% above 2M = 9,000 on 3M
-        assertEquals(0, new BigDecimal("9000.00").compareTo(
+        // 0.27% of 3M = 8,100, per the configured default tier.
+        assertEquals(0, new BigDecimal("8100.00").compareTo(
                 NepseCostEngine.commission(new BigDecimal("3000000"), RATES)));
     }
 
