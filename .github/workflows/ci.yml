@@ -1,12 +1,19 @@
 name: CI
 
-# - Every push/PR: run tests and builds so main stays green.
-# - Every push to main (after tests/build pass): auto-bump and push a version tag
-#   (v*) and build/push Docker images to GHCR. The release itself is deployed by
-#   pulling the image on the server.
+# - Every push/PR: tests + builds for all three services, so main stays green.
+# - Every push to main (after tests/builds pass): auto-bump and push a version
+#   tag (v*), build and push Docker images to GHCR, and publish a GitHub Release
+#   with the same assets the Termux deployment pulls.
 #
-# Note: the tag is created inside the same run that builds the images, so we do not
-# rely on a pushed tag re-triggering a new workflow run (GITHUB_TOKEN cannot do that).
+# Two ways to deploy from this one workflow:
+#   - Termux/Android phone: `deploy.sh` in ~/nepse downloads the release assets
+#     (nepse-portfolio.jar + frontend-dist.zip) and restarts the backend.
+#   - Any server with Docker: pull ghcr.io/<owner>/nepse-portfolio/{backend,frontend,ml}
+#     and run them (docker compose or your own setup).
+#
+# Note: the tag is created and pushed inside the same run that builds the images,
+# so we never rely on a pushed tag re-triggering a new workflow run (the default
+# GITHUB_TOKEN cannot do that).
 
 on:
   push:
@@ -54,11 +61,30 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+  ml:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ml-service/requirements.txt
+
+      - name: Install dependencies
+        working-directory: ml-service
+        run: pip install -r requirements.txt
+
+      - name: ML service tests
+        working-directory: ml-service
+        run: python -m pytest -q
+
   # Auto-bump and push a version tag. Runs only on pushes to main (not PRs).
   # Default bump is patch; include "#minor" or "#major" in a commit message to override.
   tag:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [backend, frontend]
+    needs: [backend, frontend, ml]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -79,7 +105,7 @@ jobs:
         id: bump
         run: |
           set -euo pipefail
-          # Latest v* tag (e.g. v0.4.4). Default to v0.0.0 if none exists.
+          # Latest v* tag (e.g. v0.4.5). Default to v0.0.0 if none exists.
           latest=$(git tag -l 'v*' --sort=-v:refname | head -n1)
           [ -z "$latest" ] && latest="v0.0.0"
           version="${latest#v}"
@@ -166,3 +192,56 @@ jobs:
             ghcr.io/${{ steps.prep.outputs.owner }}/nepse-portfolio/ml:latest
             ghcr.io/${{ steps.prep.outputs.owner }}/nepse-portfolio/ml:${{ github.sha }}
             ghcr.io/${{ steps.prep.outputs.owner }}/nepse-portfolio/ml:${{ needs.tag.outputs.version }}
+
+  # Publish a GitHub Release for the newly created tag with the exact assets
+  # the Termux phone pulls: nepse-portfolio.jar + frontend-dist.zip.
+  # Rebuilds inside the job instead of using artifacts (robust, no cross-job downloads).
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [tag, docker]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build backend jar
+        working-directory: backend
+        run: ./mvnw -B -DskipTests package
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Package assets
+        run: |
+          set -euo pipefail
+          cp backend/target/portfolio-*.jar nepse-portfolio.jar
+          (cd frontend/dist && zip -qr ../../frontend-dist.zip .)
+          unzip -l frontend-dist.zip | head -5
+          ls -la nepse-portfolio.jar frontend-dist.zip
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" nepse-portfolio.jar frontend-dist.zip \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG" \
+            --notes "Automated release $TAG."
