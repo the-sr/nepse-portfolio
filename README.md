@@ -11,11 +11,11 @@ with an explainable rule engine (or a scikit-learn model), and streams price ale
 
 ## Stack
 
-| Layer | Technology |
-| --- | --- |
-| Frontend | React, TypeScript |
-| Backend | Java, Spring Boot |
-| Database | PostgreSQL |
+| Layer      | Technology                                   |
+| ---------- | -------------------------------------------- |
+| Frontend   | React, TypeScript                            |
+| Backend    | Java, Spring Boot                            |
+| Database   | PostgreSQL                                   |
 | ML service | Python, FastAPI, scikit-learn (RandomForest) |
 
 ---
@@ -33,16 +33,14 @@ with an explainable rule engine (or a scikit-learn model), and streams price ale
   matching for quantities, weighted-average cost for tax (Income Tax Act 2058 §95क(2)),
   realized and unrealized P&L, allocation weights, transaction history, and a live
   "capital gains tax if you sold everything today" report. Every rate is editable
-  (trade override > user settings > admin global > verified defaults) — see
-  `docs/nepse-costs.md` for the researched schedule and sources.
+  (trade override > user settings > admin global > verified defaults).
 - **Charts** — portfolio value history, allocation donut, per-stock price chart with 1M/3M/6M/1Y
   ranges.
 - **Averaging engine** — configurable −5% / −10% / −15% trigger levels, tranche budgets, position
   and per-stock capital caps, plus an interactive "by quantity / by budget / target average"
   simulator with feasibility checks.
 - **Recommendations** — weighted technical score (trend 30, RSI 20, momentum 20, position 15,
-  volume 10, concentration 5) with human-readable reasons. Uses the ML service when a trained model
-  is available, otherwise falls back to the Java rule engine.
+  volume 10, concentration 5) with human-readable reasons, scored by the built-in rule engine.
 - **Price alerts** — above, below, and daily percentage move alerts; evaluated on each scrape;
   one-shot with re-arm; live SSE feed and persisted event history.
 - **Reports** — realized gains by FIFO lot, holding period, estimated capital gains tax at
@@ -72,7 +70,7 @@ sudo usermod -aG docker "$USER"   # log out/in or run: newgrp docker
 docker version
 ```
 
-If `docker info` reports *permission denied* or *cannot connect to the Docker daemon*, the daemon
+If `docker info` reports _permission denied_ or _cannot connect to the Docker daemon_, the daemon
 is not running — start it with `sudo systemctl enable --now docker`.
 
 ### Install Java, Node, PostgreSQL and Python (manual setup only)
@@ -106,17 +104,15 @@ docker compose up --build -d
 docker compose ps
 ```
 
-| Service | URL |
-| --- | --- |
-| App | http://localhost:3000 |
-| Swagger UI | http://localhost:8080/swagger-ui.html |
-| ML docs | http://localhost:8000/docs |
-| Postgres | `localhost:5432` (user/db from `.env`) |
+| Service    | URL                                    |
+| ---------- | -------------------------------------- |
+| App        | http://localhost:3000                  |
+| Swagger UI | http://localhost:8080/swagger-ui.html  |
+| ML docs    | http://localhost:8000/docs             |
+| Postgres   | `localhost:5432` (user/db from `.env`) |
 
-First startup runs Flyway, imports NEPSE's live security universe, and (optionally) backfills
-price history. Give the backend ~20–40 s on the first run.
-Price history is not fabricated — import it once with the admin backfill in
-[Market data notes](#market-data-notes).
+First startup runs Flyway, imports NEPSE's live security universe, and backfills price history.
+Give the backend ~20–40 s on the first run.
 
 ### Stop / reset
 
@@ -127,100 +123,46 @@ docker compose down -v       # delete database and model volumes
 
 ---
 
-## ML model
+## Manual setup (without Docker)
 
-The ML service starts without a model and reports `modelLoaded: false`; the backend then uses the
-rule engine, so recommendations work from day one.
+If you followed **Prerequisites → Install Java, Node, PostgreSQL and Python**, you already have
+everything needed. Run each service in its own terminal. The backend defaults target
+`localhost:5432` (Postgres), and the frontend proxies `/api` to `localhost:8080`.
 
-Once the database has price history, train the model:
+### 1. PostgreSQL — the database
 
-```bash
-curl -X POST http://localhost:8000/train
-curl http://localhost:8000/model/status
-```
-
-Or `make train-ml`. The model is a `RandomForestClassifier` over SMA20/SMA50 gap, RSI-14, 1/7/30-day
-returns, 20-day volatility, volume ratio and daily range. Labels are 5-class forward-5-day return
-buckets. The artifact is stored in the `ml_models` volume and reloaded on restart.
-
-`POST /predict` takes `{symbol, lossPercent, holdingDays, concentration}`. The backend passes the
-user's position context and falls back to Java scoring if the service is down, the symbol has too
-little history, or the top-class probability is below `ML_MIN_CONFIDENCE` (default `0.35`). A
-low-confidence model should not override a transparent rule score; the model is deliberately
-treated this way until enough real history has been imported.
-
----
-
-## Market data notes
-
-**Live quotes** are fetched from NEPSE's own public API, with a scraped fallback:
-
-1. `nepse` (primary) — `GET https://www.nepalstock.com/api/nots/lives-market`.
-   One request returns every listed security with open/high/low/LTP, previous close, volume and
-   turnover. NEPSE's API is undocumented and requires a short-lived token:
-   `GET /api/authenticate/prove` returns an access token plus five salts; a bundled copy of
-   NEPSE's own `css.wasm` (the same public asset `nepalstock.com` loads in the browser) is used to
-   compute the junk characters that must be stripped from the token. Requests then send
-   `Authorization: Salter <token>`. Tokens are cached for 40 s and refreshed on 401/empty responses.
-2. `sharesansar` (fallback) — `https://www.sharesansar.com/live-trading`, parsed with Jsoup.
-   Columns are mapped by header text, not position, so added columns do not break parsing.
-
-Providers are tried in the order set by `MARKET_PROVIDERS` (default `nepse,sharesansar`); the first
-non-empty response wins and the chosen source is recorded in `scrape_runs`.
-
-**Historical prices** come from
-[socrateai-official/nepse-open-data](https://github.com/socrateai-official/nepse-open-data) (MIT),
-one corporate-action-adjusted OHLC CSV per trading day. Price history is backfilled automatically
-on startup and repaired nightly, so no manual import is required. The import replaces stored bars
-in the covered date range, so it is safe to run repeatedly. After importing, stocks that did not
-trade in the latest session take their most recent real close from the history table
-(`source = HISTORY`) instead of showing zero.
-
-**Security universe.** The app imports every security NEPSE currently lists as active — equities,
-promoter shares, mutual funds, debentures and preference shares — using
-`/api/nots/security?nonDelisted=true` and `/api/nots/company/list`. This runs automatically on
-startup (when `NEPSE_ENABLED=true`) and again every night at midnight. Each row
-keeps NEPSE's own sector (`sector`) and instrument classification (`instrument_type`). Securities
-that drop out of the active list are marked `active = false` rather than deleted, so existing
-trades, alerts and price history remain valid; new trades and alerts for them are rejected.
-The nightly sync keeps new listings and delistings up to date; run the history backfill so new
-symbols get real bars:
-
-`GET /api/market/stocks` returns active securities only; pass `?includeInactive=true` for the full
-table. `GET /api/market/stocks/{symbol}` still resolves inactive symbols so old portfolios open.
-
-NEPSE's company list does not carry a sector for four promoter shares (`MDBLPO`, `PRFLPO`,
-`PSDBLP`, `SNMAPO`), so those rows keep a null sector instead of a fabricated one. Everything
-else uses NEPSE's own `sectorName`.
-
-Other notes:
-
-- The scheduler runs every 90 s inside NEPSE hours. For demos outside market hours set
-  `SCRAPER_IGNORE_MARKET_HOURS=true`.
-- Every run is recorded in `scrape_runs`; the last good prices are kept if all providers fail.
-- `POST /api/admin/market/sync` triggers an immediate refresh (ADMIN only).
-- `GET /api/admin/market/status` reports the provider chain, the last source used and recent runs.
-- NEPSE's API is unofficial and can change without notice; that is why the scraper fallback is
-  kept. Use it for personal/educational purposes only.
-
----
-
-## Local development (without Docker for the app)
-
-Start just Postgres:
+Create the database and user that the backend expects by default (skip if your Postgres already
+has them):
 
 ```bash
-docker compose up -d postgres
+sudo -u postgres psql <<'SQL'
+CREATE USER nepse WITH PASSWORD 'nepse';
+CREATE DATABASE nepse_portfolio OWNER nepse;
+SQL
 ```
 
-Backend:
+Confirm the server is up and reachable on port 5432:
+
+```bash
+sudo systemctl status postgresql
+```
+
+### 2. Backend — Java / Spring Boot
 
 ```bash
 cd backend
 ./mvnw spring-boot:run
 ```
 
-Frontend (proxies `/api` to `localhost:8080`):
+On startup it runs Flyway migrations, imports NEPSE's active security universe, and backfills price
+history (first run takes ~20–40 s). Override the defaults by exporting any of `DB_URL`, `DB_USER`,
+`DB_PASSWORD`, `JWT_SECRET`, `CORS_ORIGINS`, or the `SCRAPER_*` / `ML_*` variables before running.
+
+- API: `http://localhost:8080`
+- Swagger UI: `http://localhost:8080/swagger-ui.html`
+- Health: `curl http://localhost:8080/actuator/health` → `{"status":"UP"}`
+
+### 3. Frontend — React / Vite
 
 ```bash
 cd frontend
@@ -228,7 +170,13 @@ npm install
 npm run dev        # http://localhost:5173
 ```
 
-ML service:
+The Vite dev server already proxies `/api` to `http://localhost:8080`, so no extra config is
+needed. For a production bundle: `npm run build` (output in `dist/`), then serve `dist/`.
+
+### 4. ML service — Python (optional)
+
+Only needed if you want ML-based recommendations. Without it (or without a trained model) the
+backend uses its built-in rule engine, so you can skip this step entirely.
 
 ```bash
 cd ml-service
@@ -237,8 +185,19 @@ python3 -m venv .venv
 .venv/bin/uvicorn app.main:app --reload --port 8000
 ```
 
-Environment variables for local runs match `.env.example`; defaults in `application.yml` target
-`localhost:5432`, `localhost:8000`, and `localhost:5173`.
+- Docs / health: `http://localhost:8000/docs`, `http://localhost:8000/health`
+- Point the backend at it with `ML_SERVICE_URL=http://localhost:8000` (default) and `ML_ENABLED=true`.
+
+### 5. Environment variables
+
+Local runs read from `.env.example` (copy it to `.env`) and `backend/src/main/resources/application.yml`.
+At minimum set a long random `JWT_SECRET` (`openssl rand -base64 48`), and adjust `DB_*` / `CORS_ORIGINS`
+if your Postgres differs from the defaults above.
+
+### Verify
+
+Open `http://localhost:5173`, register a user, and add a trade. The first page load waits for the
+backend's startup sync to finish.
 
 ---
 
@@ -252,8 +211,9 @@ make ml-test         # pytest: feature/label engineering
 
 Current baseline: backend 33 tests (FIFO, indicators, DCA, scraper parsing, NEPSE token/WASM,
 security-universe and CSV import, plus one live NEPSE integration test), frontend 6 tests, ML
-feature tests (3 tests). After `docker compose up`, also run `make smoke` (or
-`bash tests/api-smoke.sh`) to verify the deployed API, demo login, demo portfolio and reports.
+feature tests (3 tests). After the stack is running, also run `make smoke` (or
+`bash tests/api-smoke.sh`) to verify the deployed API and reports end-to-end (register a user and
+seed a trade first, since the script logs in with `NEPSE_EMAIL` / `NEPSE_PASSWORD`).
 
 ---
 
@@ -262,18 +222,18 @@ feature tests (3 tests). After `docker compose up`, also run `make smoke` (or
 All routes below are under `/api`; everything except auth, public market reads and contact requires
 `Authorization: Bearer <accessToken>`.
 
-| Area | Endpoints |
-| --- | --- |
-| Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me` |
-| Market | `GET /market/stocks`, `GET /market/stocks/{symbol}?range=1M`, `GET /market/movers`, `GET /market/sectors` |
-| Portfolio | `GET /portfolio`, `GET /portfolio/trades`, `POST /portfolio/trades`, `DELETE /portfolio/trades/{id}`, `GET /portfolio/history?days=365` |
-| Analysis | `GET /analysis/recommendations`, `GET /analysis/stocks/{symbol}`, `GET /analysis/opportunities`, `POST /analysis/average-simulation` |
-| Alerts | `GET/POST /alerts`, `PUT/DELETE /alerts/{id}`, `GET /alerts/events` |
-| Reports | `GET /reports/realized-gains?from=&to=&format=csv` |
-| Settings | `GET/PUT /settings`, `GET /settings/trading-rates`, `GET /settings/trading-rates/effective`, `GET /settings/trading-rates/defaults`, `PUT /settings/trading-rates` |
-| Contact | `POST /contact` |
-| Streams | `GET /market/stream`, `GET /alerts/stream?access_token=…` (SSE) |
-| Admin | `GET /admin/market/status`, `POST /admin/market/sync`, `GET /admin/ml/status` |
+| Area      | Endpoints                                                                                                                                                          |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Auth      | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me`                                                               |
+| Market    | `GET /market/stocks`, `GET /market/stocks/{symbol}?range=1M`, `GET /market/movers`, `GET /market/sectors`                                                          |
+| Portfolio | `GET /portfolio`, `GET /portfolio/trades`, `POST /portfolio/trades`, `DELETE /portfolio/trades/{id}`, `GET /portfolio/history?days=365`                            |
+| Analysis  | `GET /analysis/recommendations`, `GET /analysis/stocks/{symbol}`, `GET /analysis/opportunities`, `POST /analysis/average-simulation`                               |
+| Alerts    | `GET/POST /alerts`, `PUT/DELETE /alerts/{id}`, `GET /alerts/events`                                                                                                |
+| Reports   | `GET /reports/realized-gains?from=&to=&format=csv`                                                                                                                 |
+| Settings  | `GET/PUT /settings`, `GET /settings/trading-rates`, `GET /settings/trading-rates/effective`, `GET /settings/trading-rates/defaults`, `PUT /settings/trading-rates` |
+| Contact   | `POST /contact`                                                                                                                                                    |
+| Streams   | `GET /market/stream`, `GET /alerts/stream?access_token=…` (SSE)                                                                                                    |
+| Admin     | `GET /admin/market/status`, `POST /admin/market/sync`, `GET /admin/ml/status`                                                                                      |
 
 Error responses use a consistent `{timestamp, status, error, message, path}` body. Validation errors
 include a `fieldErrors` map.
@@ -284,20 +244,18 @@ include a `fieldErrors` map.
 
 Key variables (see `.env.example` and `backend/src/main/resources/application.yml`):
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `JWT_SECRET` | dev value | HMAC key, **must** be replaced in production (32+ chars) |
-| `JWT_ACCESS_MINUTES` / `JWT_REFRESH_DAYS` | 30 / 14 | Token lifetimes |
-| `CORS_ORIGINS` | localhost:5173,3000 | Comma-separated allowed origins |
-| `SCRAPER_ENABLED` | true | Toggle market data refresh |
-| `SCRAPER_INTERVAL_MS` | 90000 | Refresh cadence |
-| `SCRAPER_IGNORE_MARKET_HOURS` | false | Demo mode outside NEPSE hours |
-| `MARKET_PROVIDERS` | `nepse,sharesansar` | Provider order; first success wins |
-| `NEPSE_ENABLED` | true | Enable NEPSE's live-market API |
-| `HISTORY_BACKFILL_BASE_URL` | socrateai dataset | Source for real historical CSVs |
-| `ML_ENABLED` / `ML_SERVICE_URL` | true / localhost:8000 | ML integration |
-| `ML_MIN_CONFIDENCE` | 0.35 | Minimum model probability before it overrides the rules |
-| `MAIL_*`, `ADMIN_EMAIL`, `MAIL_FROM` | blank | Optional contact-form email |
+| Variable                                  | Default             | Purpose                                                  |
+| ----------------------------------------- | ------------------- | -------------------------------------------------------- |
+| `JWT_SECRET`                              | dev value           | HMAC key, **must** be replaced in production (32+ chars) |
+| `JWT_ACCESS_MINUTES` / `JWT_REFRESH_DAYS` | 30 / 14             | Token lifetimes                                          |
+| `CORS_ORIGINS`                            | localhost:5173,3000 | Comma-separated allowed origins                          |
+| `SCRAPER_ENABLED`                         | true                | Toggle market data refresh                               |
+| `SCRAPER_INTERVAL_MS`                     | 90000               | Refresh cadence                                          |
+| `SCRAPER_IGNORE_MARKET_HOURS`             | false               | Demo mode outside NEPSE hours                            |
+| `MARKET_PROVIDERS`                        | `nepse,sharesansar` | Provider order; first success wins                       |
+| `NEPSE_ENABLED`                           | true                | Enable NEPSE's live-market API                           |
+| `HISTORY_BACKFILL_BASE_URL`               | socrateai dataset   | Source for real historical CSVs                          |
+| `MAIL_*`, `ADMIN_EMAIL`, `MAIL_FROM`      | blank               | Optional contact-form email                              |
 
 ---
 
@@ -345,9 +303,6 @@ migration (reset the dev volume with `docker compose down -v`).
 network access may be blocked. Check `docker compose logs backend` for scrape errors and
 `/api/admin/market/status`. The last known prices remain usable meanwhile.
 
-**Recommendations show `RULE` instead of `ML`** — expected until you call `POST /train`; the rule
-engine is the intentional fallback.
-
 **SSE disconnects behind a proxy** — keep `proxy_buffering off` and a long `proxy_read_timeout`
 (already configured in `frontend/nginx.conf`). The alerts stream authenticates with
 `?access_token=` because native EventSource cannot set headers.
@@ -360,7 +315,7 @@ engine is the intentional fallback.
   access token automatically; refresh tokens are also persisted server-side and rotated on use. For
   a hardened deployment, move tokens to httpOnly cookies and add a strict Content-Security-Policy.
 - Passwords are BCrypt-hashed. Never commit `.env`.
-- Run behind TLS, restrict CORS, rotate `JWT_SECRET`, and disable demo seeding for real deployments.
+- Run behind TLS, restrict CORS, and rotate `JWT_SECRET`.
 - This project is for education and personal record-keeping. It is **not** a brokerage, does not
   place orders, and does not provide financial, tax or investment advice. Verify every number
   against your broker and consult a licensed professional before acting.
