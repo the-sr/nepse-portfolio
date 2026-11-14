@@ -1,13 +1,16 @@
 name: CI
 
 # - Every push/PR: run tests and builds so main stays green.
-# - A version tag (v*) additionally publishes a GitHub Release with two assets
-#   that the Android/Termux deployment pulls: nepse-portfolio.jar + frontend-dist.zip
+# - Every push to main: after tests/build pass, auto-bump and push a version tag,
+#   build and push Docker images to GHCR, and publish a GitHub Release.
+#
+# Note: the tag is created and pushed inside the same run (job `tag`) that builds
+# the images and publishes the release, so we never depend on a pushed tag
+# re-triggering a new workflow run (the default GITHUB_TOKEN cannot do that).
 
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -65,9 +68,123 @@ jobs:
           path: frontend/dist/
           if-no-files-found: error
 
-  release:
-    if: startsWith(github.ref, 'refs/tags/v')
+  # Auto-bump and push a version tag. Runs only on pushes to main (not PRs).
+  # Default bump is patch; include "#minor" or "#major" in a commit message to override.
+  tag:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Compute next version
+        id: bump
+        run: |
+          set -euo pipefail
+          # Latest v* tag (e.g. v0.4.3). Default to v0.0.0 if none exists.
+          latest=$(git tag -l 'v*' --sort=-v:refname | head -n1)
+          [ -z "$latest" ] && latest="v0.0.0"
+          version="${latest#v}"
+
+          major="${version%%.*}"
+          rest="${version#*.}"
+          minor="${rest%%.*}"
+          patch="${rest##*.}"
+
+          # Allow overrides via commit message: "#minor" or "#major".
+          msg=$(git log -1 --pretty=%B)
+          bump="patch"
+          if echo "$msg" | grep -qiE '#major([[:space:]]|$)'; then
+            bump="major"
+          elif echo "$msg" | grep -qiE '#minor([[:space:]]|$)'; then
+            bump="minor"
+          fi
+
+          case "$bump" in
+            major) major=$((major+1)); minor=0; patch=0 ;;
+            minor) minor=$((minor+1)); patch=0 ;;
+            patch) patch=$((patch+1)) ;;
+          esac
+
+          next="v${major}.${minor}.${patch}"
+          echo "Bumping $latest -> $next ($bump)"
+          echo "version=$next" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        run: |
+          set -euo pipefail
+          version="${{ steps.bump.outputs.version }}"
+          git tag "$version"
+          git push origin "$version"
+
+  # Build and push Docker images to GHCR. Runs on main after the tag job.
+  docker:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [tag]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set lowercase image owner
+        id: prep
+        run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ghcr.io/${{ steps.prep.outputs.owner }}/nepse-portfolio/backend:latest
+            ghcr.io/${{ steps.prep.outputs.owner }}/nepse-portfolio/backend:${{ github.sha }}
+            ghcr.io/${{ steps.prep.outputs.owner }}/nepse-portfolio/backend:${{ needs.tag.outputs.version }}
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ghcr.io/${{ steps.prep.outputs.owner }}/nepse-portfolio/frontend:latest
+            ghcr.io/${{ steps.prep.outputs.owner }}/nepse-portfolio/frontend:${{ github.sha }}
+            ghcr.io/${{ steps.prep.outputs.owner }}/nepse-portfolio/frontend:${{ needs.tag.outputs.version }}
+
+      - name: Build and push ml
+        uses: docker/build-push-action@v6
+        with:
+          context: ./ml-service
+          push: true
+          tags: |
+            ghcr.io/${{ steps.prep.outputs.owner }}/nepse-portfolio/ml:latest
+            ghcr.io/${{ steps.prep.outputs.owner }}/nepse-portfolio/ml:${{ github.sha }}
+            ghcr.io/${{ steps.prep.outputs.owner }}/nepse-portfolio/ml:${{ needs.tag.outputs.version }}
+
+  # Publish a GitHub Release for the newly created tag with jar + frontend zip.
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [tag, docker]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -80,7 +197,7 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ needs.tag.outputs.version }}
         run: |
           set -euo pipefail
           jar_file=$(ls artifacts/nepse-portfolio-jar/portfolio-*.jar | head -n1)
@@ -89,4 +206,4 @@ jobs:
           gh release create "$TAG" nepse-portfolio.jar frontend-dist.zip \
             --repo "$GITHUB_REPOSITORY" \
             --title "$TAG" \
-            --notes "Automated release $TAG — deploy with deploy/termux-deploy.sh"
+            --notes "Automated release $TAG."
