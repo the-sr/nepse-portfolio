@@ -4,7 +4,7 @@ A full-stack portfolio tracker for the Nepal Stock Exchange. It tracks holdings 
 scraped price, computes FIFO P&L, suggests averaging-down tranches, scores buy/hold/sell signals
 with an explainable rule engine (or a scikit-learn model), and streams price alerts over SSE.
 
-> **Educational tool, not financial advice.** Prices can be delayed or incomplete, and the signals
+> **Disclaimer: This application is not a financial adviser.** Prices can be delayed or incomplete, and the signals
 > ignore your personal objectives and tax situation.
 
 ---
@@ -13,24 +13,10 @@ with an explainable rule engine (or a scikit-learn model), and streams price ale
 
 | Layer | Technology |
 | --- | --- |
-| Frontend | React 18, TypeScript, Vite, Tailwind CSS, TanStack Query, Recharts, Framer Motion |
-| Backend | Java 21, Spring Boot 3.5, Spring Security 6 + JWT, Spring Data JPA, Flyway |
-| Database | PostgreSQL 16 |
-| ML service | Python 3.12, FastAPI, scikit-learn (RandomForest) |
-| Runtime | Docker Compose (4 services), or local dev servers |
-
-The backend is a **modular monolith**: one deployable, internally split into `auth`, `market`,
-`portfolio`, `analysis`, `recommend`, `alert`, `contact`, `report`, `settings`, `stream`,
-`security`, `common`, `seed` and `config` packages. The ML model is the only separate service, so
-it can be retrained without redeploying the API.
-
-```
-Browser ──► nginx (React SPA) ──/api──► Spring Boot ──► PostgreSQL
-                                            │                ▲
-                                            └──HTTP──► FastAPI ML ┘
-                                            └──HTTP──► NEPSE live market API
-                                            └──Jsoup──► Sharesansar (fallback)
-```
+| Frontend | React, TypeScript |
+| Backend | Java, Spring Boot |
+| Database | PostgreSQL |
+| ML service | Python, FastAPI, scikit-learn (RandomForest) |
 
 ---
 
@@ -69,8 +55,12 @@ Browser ──► nginx (React SPA) ──/api──► Spring Boot ──► Po
 
 ## Prerequisites
 
-- Docker Engine + Docker Compose v2
-- (Optional, for local development) JDK 21+, Node 20+, Python 3.12+
+Choose one way to run the application:
+
+- **Docker Compose:** Docker Engine and the Docker Compose v2 plugin.
+- **Manual setup:** PostgreSQL 16, JDK 21+, Node.js 20+, and Python 3.12+.
+
+Docker Compose runs PostgreSQL, the backend, frontend, and ML service together. For manual setup, install and run those dependencies yourself.
 
 ### Install Docker (Debian/Ubuntu)
 
@@ -85,7 +75,7 @@ docker version
 If `docker info` reports *permission denied* or *cannot connect to the Docker daemon*, the daemon
 is not running — start it with `sudo systemctl enable --now docker`.
 
-### Install Node and Java (local dev only)
+### Install Java, Node, PostgreSQL and Python (manual setup only)
 
 ```bash
 # Node 20+ (nvm recommended)
@@ -95,6 +85,12 @@ nvm install 20
 # JDK 21
 sudo apt install -y openjdk-21-jdk
 java -version
+
+# PostgreSQL
+sudo apt install -y postgresql
+
+# Python runtime, venv and package manager
+sudo apt install -y python3, python3-venv, python3-pip
 ```
 
 ---
@@ -113,20 +109,14 @@ docker compose ps
 | Service | URL |
 | --- | --- |
 | App | http://localhost:3000 |
-| API | http://localhost:8080/api |
 | Swagger UI | http://localhost:8080/swagger-ui.html |
 | ML docs | http://localhost:8000/docs |
 | Postgres | `localhost:5432` (user/db from `.env`) |
 
 First startup runs Flyway, imports NEPSE's live security universe, and (optionally) backfills
-price history. No demo accounts or trades are created. Give the backend ~20–40 s on the first run.
+price history. Give the backend ~20–40 s on the first run.
 Price history is not fabricated — import it once with the admin backfill in
 [Market data notes](#market-data-notes).
-
-### Accounts
-
-No demo accounts are seeded. Register via `POST /api/auth/register`; promote an admin by
-setting `role = 'ADMIN'` on the user row in the database.
 
 ### Stop / reset
 
