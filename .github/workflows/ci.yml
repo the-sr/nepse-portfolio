@@ -1,12 +1,12 @@
 name: CI
 
 # - Every push/PR: run tests and builds so main stays green.
-# - Every push to main: after tests/build pass, auto-bump and push a version tag,
-#   build and push Docker images to GHCR, and publish a GitHub Release.
+# - Every push to main (after tests/build pass): auto-bump and push a version tag
+#   (v*) and build/push Docker images to GHCR. The release itself is deployed by
+#   pulling the image on the server.
 #
-# Note: the tag is created and pushed inside the same run (job `tag`) that builds
-# the images and publishes the release, so we never depend on a pushed tag
-# re-triggering a new workflow run (the default GITHUB_TOKEN cannot do that).
+# Note: the tag is created inside the same run that builds the images, so we do not
+# rely on a pushed tag re-triggering a new workflow run (GITHUB_TOKEN cannot do that).
 
 on:
   push:
@@ -35,13 +35,6 @@ jobs:
         working-directory: backend
         run: ./mvnw -B -DskipTests package
 
-      - name: Upload jar artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: nepse-portfolio-jar
-          path: backend/target/portfolio-*.jar
-          if-no-files-found: error
-
   frontend:
     runs-on: ubuntu-latest
     steps:
@@ -60,13 +53,6 @@ jobs:
       - name: Build
         working-directory: frontend
         run: npm run build
-
-      - name: Upload dist artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: frontend/dist/
-          if-no-files-found: error
 
   # Auto-bump and push a version tag. Runs only on pushes to main (not PRs).
   # Default bump is patch; include "#minor" or "#major" in a commit message to override.
@@ -93,7 +79,7 @@ jobs:
         id: bump
         run: |
           set -euo pipefail
-          # Latest v* tag (e.g. v0.4.3). Default to v0.0.0 if none exists.
+          # Latest v* tag (e.g. v0.4.4). Default to v0.0.0 if none exists.
           latest=$(git tag -l 'v*' --sort=-v:refname | head -n1)
           [ -z "$latest" ] && latest="v0.0.0"
           version="${latest#v}"
@@ -180,30 +166,3 @@ jobs:
             ghcr.io/${{ steps.prep.outputs.owner }}/nepse-portfolio/ml:latest
             ghcr.io/${{ steps.prep.outputs.owner }}/nepse-portfolio/ml:${{ github.sha }}
             ghcr.io/${{ steps.prep.outputs.owner }}/nepse-portfolio/ml:${{ needs.tag.outputs.version }}
-
-  # Publish a GitHub Release for the newly created tag with jar + frontend zip.
-  release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [tag, docker]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Publish release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.tag.outputs.version }}
-        run: |
-          set -euo pipefail
-          jar_file=$(ls artifacts/nepse-portfolio-jar/portfolio-*.jar | head -n1)
-          cp "$jar_file" nepse-portfolio.jar
-          (cd artifacts/frontend-dist && zip -qr ../../frontend-dist.zip .)
-          gh release create "$TAG" nepse-portfolio.jar frontend-dist.zip \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "$TAG" \
-            --notes "Automated release $TAG."
